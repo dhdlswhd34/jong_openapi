@@ -151,8 +151,6 @@ class G2B:
         return file_url
 
 
-
-
     #사용 X
     def get_LH_OTL_compay(self,url):
         temp_dict = {}
@@ -194,30 +192,6 @@ class G2B:
                     json_object = json.dumps(dictionary)
                     self.json_data = json.loads(json_object)
 
-                    """
-                    self.r_item = self.json_data["response"]["body"]["item"]
-                    #self.r_item = self.r_body.get("item")
-
-                    j = 0
-                    for item in self.r_item:
-                        print(item.get('bidNum'))
-                        self.bidNum = item.get('bidNum')
-                        print(item.get('bidDegree'))
-                        self.bidDegree = item.get('bidDegree')    
-                        
-                        if type == 1:
-                            item['입찰공고'] = self.get_LH_dict(LH_web.URL)
-                            item['입찰공고'].update(self.get_LH_dict_file())
-                            with open('announce_json/'+str(item.get('bidNum'))+ '_' + str(item.get('bidDegree')) + '_announce.json', 'w', encoding='utf-8') as file :
-                                json.dump(item, file, ensure_ascii=False, indent='\t')
-                            #print(self.r_body)                        
-                        elif type == 2:
-                            with open('result_json/'+str(item.get('bidNum'))+ '_' + str(j) + '_result.json', 'w', encoding='utf-8') as file :
-                                json.dump(item, file, ensure_ascii=False, indent='\t')
-                            j+=1    
-                    with open('announce_json/'+str(item.get('bidNum'))+ '_' + str(item.get('bidDegree')) + '_announce_total.json', 'w', encoding='utf-8') as file :
-                        json.dump(self.r_item, file, ensure_ascii=False, indent='\t')     
-                    """
                     return True
             except Exception as e:
                 print('get_LH_query_data ERROR')    
@@ -289,7 +263,8 @@ class G2B:
                     elif type == 2:
                         self.item_data.append((self.begin, self.end,json.dumps(item,ensure_ascii=False)))
 
-            '''
+            #필터링 부분
+            ''' 
             if self.filtering is None:
                 self.item_data = [(self.begin, self.end, json.dumps(item, ensure_ascii=False)) for item in items]
                 if self.sub_type == 'corporation':

@@ -43,7 +43,7 @@ class LHAnnounceRunner():
             g2b_data = G2BData()
             bid_list = []
             bid_list.append(g2b_data.get_LH_announce())            
-            #bid_list = [[url, div, filtering, table] for url, divs, table in bid_list for div, filtering in divs.items()]\
+            #bid_list = [[url, div, filtering, table] for url, divs, table in bid_list for div, filtering in divs.items()]
         
             for url,table in bid_list:
                 if self.url(url, table) is False:
