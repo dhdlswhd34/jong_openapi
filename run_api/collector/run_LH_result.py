@@ -6,9 +6,9 @@ from lib.state import StateCode
 from api import G2B
 from data import G2BData
 
+from lib.logger import Logger
 #DB
 from lib.db import Db
-from lib.logger import Logger
 
 class LHResultRunner():
     rows = 10

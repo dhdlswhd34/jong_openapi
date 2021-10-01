@@ -22,8 +22,10 @@ class Runner():
 
         
     def run(self):
+        #개찰결과
         if self.process_run(LHResultRunner) is False:
             return False
+        #입찰공고
         if self.process_run(LHAnnounceRunner) is False:
             return False
 
@@ -59,7 +61,7 @@ class Runner():
 if __name__ == '__main__':
     #인자 넣어주기
     parser = argparse.ArgumentParser()
-    #시작 끝 넣기
+    #시작 끝 넣기   (년 월 일) <- LH
     parser.add_argument('--begin', required=True, help='yyyyMMdd')
     parser.add_argument('--end', required=True, help='yyyyMMdd')
     #인자 받아오기
@@ -67,7 +69,7 @@ if __name__ == '__main__':
 
 
     try:
-        #시간 가져오기
+        #시간 가져오기  (년 월 일 시간 분)
         datetime.strptime(args.begin, '%Y%m%d%H%M')
         datetime.strptime(args.end, '%Y%m%d%H%M')
     except (TypeError, ValueError):
