@@ -4,7 +4,7 @@
 
 //참고
 //https://blog.naver.com/PostView.nhn?blogId=tipsware&logNo=221301535902
-//10월 7일 git 연결
+//10월 7일 git 연결 다시 수정
 int main()
 {  
   FILE *fp;
