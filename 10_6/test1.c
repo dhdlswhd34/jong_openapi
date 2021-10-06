@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
+//참고
+//https://blog.naver.com/PostView.nhn?blogId=tipsware&logNo=221301535902
 int main()
 {  
   FILE *fp;
@@ -26,11 +26,10 @@ int main()
   
   fgets(buffer,size,fp);
 
-  char * ttemp;
   temp = strtok(buffer,",");
+  printf("%s",temp);
   while(temp != NULL)
   {
-    ttemp = temp;
     temp = strtok(NULL,",");
   }
 

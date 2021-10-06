@@ -15,3 +15,4 @@ $(TARGET) : $(OBJECT)
 
 clean :
 	rm -rf out/*
+	rm -rf *.o test1_out test2_out test3_out
