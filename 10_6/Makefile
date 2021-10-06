@@ -13,6 +13,7 @@ $(TARGET) : $(OBJECT)
 # 	$(CC) $(CFLAGS) -c -o test3.o test3.c
 # 	$(CC) $(CFLAGS) -c -o test3.o test3.c
 
+
 clean :
 	rm -rf out/*
 	rm -rf *.o test1_out test2_out test3_out
