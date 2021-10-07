@@ -3,7 +3,7 @@
 #include <string.h>
 
 //참고
-//10월 7일 완료 -> 주석 및 환경 알려주기
+//10월 7일 완료 -> 주석 및 환경 알려주기 -> 다시 픽스
 #define MAX_LEN_NAME 20
 #define MAX_LEN 20000
 
