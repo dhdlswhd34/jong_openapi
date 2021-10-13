@@ -34,25 +34,22 @@ class LHAnnounceRunner():
             state_code = StateCode.END
         """
 
-        #DB부분
+        # DB부분
         self.db = Db(self.logger)
         self.db.connect()
         self.db.autocommit(False)
-        
+
         try:
             g2b_data = G2BData()
             bid_list = []
-            bid_list.append(g2b_data.get_LH_announce())            
+            bid_list.append(g2b_data.get_LH_announce())
             #bid_list = [[url, div, filtering, table] for url, divs, table in bid_list for div, filtering in divs.items()]
-        
-            for url,table in bid_list:
+            for url, table in bid_list:
                 if self.url(url, table) is False:
                     state_code = StateCode.ERROR
-                    #db
                     self.db.rollback()
                     return False
                 else:
-                    #db
                     self.db.commit()
         except Exception as e:
             print("ERROR g2b")
@@ -74,7 +71,7 @@ class LHAnnounceRunner():
             g2b.set_query_url(f'{url}?{query}')
             g2b.set_page(page, self.rows)
 
-            #1: 입찰공고 2: 결과 3: 사전규격 (함수이름은 추후에 수정)
+            #1: 입찰공고 2: 결과 (함수이름은 추후에 수정)
             if g2b.query_data(1) is False:
                 return False
 
@@ -89,7 +86,7 @@ class LHAnnounceRunner():
             if self.item_insert(table, g2b.item_data) is False:
                 return False
 
-            break #체크 포인트
+            break   #체크 포인트
 
             if g2b.page_count <= page:
                 break

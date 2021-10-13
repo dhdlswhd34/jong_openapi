@@ -255,11 +255,19 @@ class G2BData():
     def get_LH_announce(self):
         url = 'http://openapi.ebid.lh.or.kr/ebid.com.openapi.service.OpenBidInfoList.dev'
         table = 'raw_lh_announce'
-        div = {'1': None}
-        return [url,table]
+        return [url, table]
 
     def get_LH_result(self):
         url = 'http://openapi.ebid.lh.or.kr/ebid.com.openapi.service.OpenTenderopenList.dev'
         table = 'raw_lh_result'
-        div = {'1': None}
-        return [url,table]
+        return [url, table]
+
+    def get_ETRI_result(self):
+        url = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustInfoResultView.do'
+        table = 'raw_ETRI_result'
+        return [url, table]
+
+    def get_ETRI_announce(self):
+        url = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustInfoMainView.do'
+        table = 'raw_ETRI_announce'
+        return [url, table]

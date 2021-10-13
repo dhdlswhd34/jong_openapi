@@ -3,12 +3,12 @@ from urllib import request
 import json
 import time
 import xmltodict
-
-#나중에 정리
-from bs4 import BeautifulSoup
 import requests
-from lib.config import LH_web ,LH_web_result
+from bs4 import BeautifulSoup
+from lib.lh_config import LH_web, label_list
+from lib.etri_config import ETRI_web
 from urllib.parse import quote_plus
+
 
 class G2B:
     query_retry = 50
@@ -17,7 +17,7 @@ class G2B:
     timeout = 120
 
     sub_type = None
-    
+
     def __init__(self, begin=None, end=None, filtering=None):
         self.begin = begin
         self.end = end
@@ -33,168 +33,134 @@ class G2B:
         self.page = page
         self.rows = rows
 
-    """
-    def get_query_data(self):
-        for i in range(self.query_retry):
-            try:
-                with request.urlopen(self.url, timeout=self.timeout) as response:
-                    result = response.read().decode('UTF-8')
-                    self.json_data = json.loads(result)
-                    return True
-            except Exception as e:
-                self.logger.error(e)
-                if 'result' in locals():
-                    self.logger.error(result)
-                time.sleep(self.query_retry_time)
+    def get_ETRI_cookie(self):
+        response = requests.get(ETRI_web.URL)
 
-        return False
-    """
+        if response.status_code == 200:
+            header = response.headers
+            self.cookie = header['Set-Cookie']
+            return True
+        else:
+            print(response.status_code)
+            return False
 
-
-    def get_LH_dict(self,url):
+    def get_ETRI_announce(self, url):
         temp_dict = {}
+        response = requests.get(self.url)
 
-        url = url +self.bidNum +'&bidDegree=' + self.bidDegree
-        response = requests.get(url)
-        
         if response.status_code == 200:
             html = response.text
             self.soup_obj = BeautifulSoup(html, 'html.parser')
-        else : 
+        else:
             print(response.status_code)
-        for i in range(1,7):
+        for i in range(1, 7):
             id_label1 = 'LblockDetail' + str(i)
-            if(self.soup_obj.find('div', id = id_label1)) is not None:
-                for value in self.soup_obj.find('div', id = id_label1).find_all('tr'):
+            if (self.soup_obj.find('div', id=id_label1)) is not None:
+                for value in self.soup_obj.find('div', id=id_label1).find_all('tr'):
                     label = value.find('th').find('label').text.strip()
                     data = value.find('td').text.strip()
-                    if (label) == "국내/국제":
+                    if (label) in label_list:
                         temp_dict[label] = data
-                    elif (label) == "최초공고등록일":
-                        temp_dict[label] = data
-                    elif (label) == "가격점수제외금액":
-                        temp_dict[label] = data
-                    elif (label) == "낙찰제외기준금액":
-                        temp_dict[label] = data
-                    elif (label) == "비고":
-                        temp_dict[label] = data
-                    elif (label) == "공고변경사유":
-                        temp_dict[label] = data
-                    elif (label) == "입찰방식":
-                        temp_dict[label] = data
-                    elif (label) == "낙찰자선정방법":
-                        temp_dict[label] = data
-                    elif (label) == "심사적용기준":
-                        temp_dict[label] = data
-                    elif (label) == "지문인식공고여부":
-                        temp_dict[label] = data
-                    elif (label) == "재입찰":
-                        temp_dict[label] = data
-                    elif (label) == "PQ심사실시여부":
-                        temp_dict[label] = data
-                    elif (label) == "PQ심사신청서접수기한":
-                        temp_dict[label] = data
-                    elif (label) == "용역유형":
-                        temp_dict[label] = data
-                    elif (label) == "품명":
-                        temp_dict[label] = data
-                    elif (label) == "공사종류":
-                        temp_dict[label] = data
-                    elif (label) == "업종유형":
-                        temp_dict[label] = data
-                    elif (label) == "공종별내역서":
-                        temp_dict[label] = data
-                    elif (label) == "공고변경정보":
+            else:
+                break
+        return temp_dict
+
+    def get_ETRI_result(self, url):
+        # 쿠키 가져오기
+        if self.get_ETRI_cookie() is False:
+            return False
+
+        temp_dict = {}
+        # 쿠키 넣어주기
+        header = {'Cookie': self.cookie}
+        response = requests.get(self.url, headers=header)
+
+        if response.status_code == 200:
+            html = response.text
+            self.soup_obj = BeautifulSoup(html, 'html.parser')
+        else:
+            print(response.status_code)
+
+        if (self.soup_obj.find_all('table', id='table01')) is not None:
+            for value in self.soup_obj.find('div', id=id_label1).find_all('tr'):
+                label = value.find('th').find('label').text.strip()
+                data = value.find('td').text.strip()
+                if (label) in label_list:
+                    temp_dict[label] = data
+        else:
+            break
+        return temp_dict
+
+    def get_LH_dict(self, url):
+        temp_dict = {}
+        url = url + self.bidNum + '&bidDegree=' + self.bidDegree
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            html = response.text
+            self.soup_obj = BeautifulSoup(html, 'html.parser')
+        else:
+            print(response.status_code)
+        for i in range(1, 7):
+            id_label1 = 'LblockDetail' + str(i)
+            if (self.soup_obj.find('div', id=id_label1)) is not None:
+                for value in self.soup_obj.find('div', id=id_label1).find_all('tr'):
+                    label = value.find('th').find('label').text.strip()
+                    data = value.find('td').text.strip()
+                    if (label) in label_list:
                         temp_dict[label] = data
             else:
                 break
         return temp_dict
 
     def get_LH_dict_file(self):
+        # {'파일명': 'filename', 'URL': 'fileURL'} <- 저장
         temp_dict = {
-            '첨부파일' :{'순번':['파일명','URL']} 
-            }    
-        temp_list = []
-        i = 1
-        for value in self.soup_obj.find('div', class_ = "LblockListTable").find_all('tr',class_='Lfirst'):
-            temp_list.append(value.find('a',class_='attach').text.strip())
-            temp_list.append(self.file_url_get(value.find('a',class_='attach')['href']))
-            temp_dict['첨부파일'][str(i)] = temp_list.copy()
-            i += 1
-            temp_list.clear()    
-        return  temp_dict
+            '첨부파일': []
+            }
+        for value in self.soup_obj.find('div', class_="LblockListTable").find_all('tr', class_='Lfirst'):
+            temp = {}
+            temp['파일명'] = value.find('a', class_='attach').text.strip()
+            temp['URL'] = self.get_file_url(value.find('a', class_='attach')['href'])
+            temp_dict['첨부파일'].append(temp)
 
-    def file_url_get(self,ex_file):
-        filename = ''
-        savename = ''
-        str_f = ''
-        flag = False
-        i = 0
-        for value in ex_file:
-            if value == "'":
-                if(flag):
-                    if(i == 1):
-                        savename = str_f[1:]
-                    elif(i == 3):
-                        filename = str_f[1:]
-                    i += 1
-                    str_f = ''
-                flag = not flag 
-            if(flag):
-                str_f += value
+        return temp_dict
+
+    def get_file_url(self, ex_file):
+
+        if (ex_file) == '':
+            return ''
+
+        temp = ex_file[23:-2].split('\',')
+
+        if ((temp[1][0]) != '\''):
+            print("savename error")
+            return ''
+        if ((temp[3][0] or temp[3][-1]) != '\''):
+            print("filename error")
+            return ''
+
+        savename = temp[1][1:]
+        filename = temp[3][1:-1]
 
         savename = quote_plus(savename)
         filename = quote_plus(filename)
 
-        file_url = 'https://ebid.lh.or.kr/ebid.framework.download.dev?download.filespec=bidinfo&download.filename=' + filename + '&download.savedname=' + savename + '&download.bidnum='
-        
+        file_url = LH_web.file_url(savename, filename)
         return file_url
-
-
-    #사용 X
-    def get_LH_OTL_compay(self,url):
-        temp_dict = {}
-        temp_list = []
-
-        url = url +self.bidNum +'&bidDegree=' + self.bidDegree
-        response = requests.get(url)
-
-        print(url)
-        if response.status_code == 200:
-            html = response.text
-            self.soup_obj = BeautifulSoup(html, 'html.parser')
-        else : 
-            print(response.status_code)
-
-        temp = ''
-        if(self.soup_obj.find('div' ,class_ = 'Lwrapper')) is not None:
-            for value in self.soup_obj.find('div' ,class_ = 'Lwrapper'):
-                if(value.find('thead')) != -1:
-                    for tag in value.find('thead').find_all('th'):
-                        if tag.text.strip() != '순번':
-                            temp_list.append(tag.text.strip())
-                    temp_dict['순번'] = temp_list.copy()
-                temp_list.clear()
-                if(value.find('tbody')) != -1:
-                    for tr in value.find('tbody').find_all('tr'):
-                        for i in range(1,len(tr.find_all('td'))):
-                            temp_list.append(tr.find_all('td')[i].text.strip())
-                        temp_dict[tr.find('td').text] = temp_list.copy()
-                        temp_list.clear()
-        return temp_dict
 
     def get_LH_query_data(self):
         for i in range(self.query_retry):
             try:
                 with request.urlopen(self.url, timeout=self.timeout) as response:
                     result = response.read().decode('cp949')
-                    dictionary = xmltodict.parse(result) #JSON 으로 변환
+                    dictionary = xmltodict.parse(result)        # JSON 으로 변환
                     json_object = json.dumps(dictionary)
                     self.json_data = json.loads(json_object)
 
                     return True
             except Exception as e:
-                print('get_LH_query_data ERROR')    
+                self.logger.error(e)
         return False
 
     def get_result_code(self):
@@ -243,86 +209,54 @@ class G2B:
             self.logger.error(f'item({item})')
             return False
 
-
-    def get_LH_items(self,type):
+    def get_LH_items(self, type):
         try:
             self.r_item = self.json_data["response"]["body"]["item"]
 
             self.item_data = []
-            
+
             if self.filtering is None:
                 for item in self.r_item:
-                    print(str(type)+"|"+item.get('bidNum') + '|' +item.get('bidDegree'))
+
                     self.bidNum = item.get('bidNum')
-                    self.bidDegree = item.get('bidDegree')    
-    
+                    self.bidDegree = item.get('bidDegree')
+
                     if type == 1:
                         item['입찰공고'] = self.get_LH_dict(LH_web.URL)
                         item['입찰공고'].update(self.get_LH_dict_file())
-                        self.item_data.append((self.begin, self.end,json.dumps(item,ensure_ascii=False)))
+                        self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
                     elif type == 2:
-                        self.item_data.append((self.begin, self.end,json.dumps(item,ensure_ascii=False)))
-
-            #필터링 부분
-            ''' 
-            if self.filtering is None:
-                self.item_data = [(self.begin, self.end, json.dumps(item, ensure_ascii=False)) for item in items]
-                if self.sub_type == 'corporation':
-                    self.sub_type_list = [item.get('bizno').strip() for item in items]
-                elif self.sub_type == 'result':
-                    self.sub_type_list = [(item.get('bidNtceNo'), item.get('bidNtceOrd'), item.get('bidClsfcNo'), item.get('rbidNo'), item.get('progrsDivCdNm')) for item in items]
-                    self.sub_type_list = [tuple(map(str.strip, sub_type_item)) for sub_type_item in self.sub_type_list]
-            elif isinstance(self.filtering, list):
-                self.item_data = [(self.begin, self.end, json.dumps(item, ensure_ascii=False)) for item in items if self.list_calc_date(item)]
-            else:
-                self.item_data = [(self.begin, self.end, json.dumps(item, ensure_ascii=False)) for item in items if self.calc_date(item)]
-                if self.sub_type == 'corporation':
-                    self.sub_type_list = [item.get('bizno').strip() for item in items if self.calc_date(item)]
-                elif self.sub_type == 'result':
-                    self.sub_type_list = [(item.get('bidNtceNo'), item.get('bidNtceOrd'), item.get('bidClsfcNo'), item.get('rbidNo'), item.get('progrsDivCdNm')) for item in items if self.calc_date(item)]
-                    self.sub_type_list = [tuple(map(str.strip, sub_type_item)) for sub_type_item in self.sub_type_list]
-            '''    
+                        self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))             
             return True
         except KeyError as e:
             self.logger.error(e)
             return False
 
-
-    def get_items(self):
+    def get_ETRI_items(self, type):
         try:
-            items = self.json_data['response']['body']['items']
-
-            if self.filtering is None:
-                self.item_data = [(self.begin, self.end, json.dumps(item, ensure_ascii=False)) for item in items]
-                if self.sub_type == 'corporation':
-                    self.sub_type_list = [item.get('bizno').strip() for item in items]
-                elif self.sub_type == 'result':
-                    self.sub_type_list = [(item.get('bidNtceNo'), item.get('bidNtceOrd'), item.get('bidClsfcNo'), item.get('rbidNo'), item.get('progrsDivCdNm')) for item in items]
-                    self.sub_type_list = [tuple(map(str.strip, sub_type_item)) for sub_type_item in self.sub_type_list]
-            elif isinstance(self.filtering, list):
-                self.item_data = [(self.begin, self.end, json.dumps(item, ensure_ascii=False)) for item in items if self.list_calc_date(item)]
-            else:
-                self.item_data = [(self.begin, self.end, json.dumps(item, ensure_ascii=False)) for item in items if self.calc_date(item)]
-                if self.sub_type == 'corporation':
-                    self.sub_type_list = [item.get('bizno').strip() for item in items if self.calc_date(item)]
-                elif self.sub_type == 'result':
-                    self.sub_type_list = [(item.get('bidNtceNo'), item.get('bidNtceOrd'), item.get('bidClsfcNo'), item.get('rbidNo'), item.get('progrsDivCdNm')) for item in items if self.calc_date(item)]
-                    self.sub_type_list = [tuple(map(str.strip, sub_type_item)) for sub_type_item in self.sub_type_list]
-
+            self.item_data = []
+            if type == 3:
+                 = self.get_ETRI_webc(self.url)
+                
+                self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
+            elif type == 4:
+                = self.get_ETRI_result(self.url)
+                self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))             
             return True
         except KeyError as e:
             self.logger.error(e)
             return False
-    
+
     def query_page(self):
         self.get_total_count()
         (q, r) = divmod(self.total_count, self.rows)
         self.page_count = q if r == 0 else q + 1
 
-    def query_data(self,type,retry=0):
+    def query_data(self, type, retry=0):
 
-        if self.get_LH_query_data() is False:
-            return False
+        if(type < 3):
+            if self.get_LH_query_data() is False:
+                return False
 
         self.get_result_code()
 
@@ -330,7 +264,10 @@ class G2B:
             if self.page == 1:
                 self.query_page()
 
-            return self.get_LH_items(type) if self.total_count > 0 else True
+            if (type < 3):
+                return self.get_LH_items(type) if self.total_count > 0 else True
+            elif(type > 3):
+                return self.get_ETRI_items(type) if self.total_count > 0 else True
         elif self.result_code > 0 and self.result_code < 6:
             if retry >= self.query_retry:
                 self.logger.info(f'max retry excced({retry})')
