@@ -1,9 +1,19 @@
 class ETRI_web:
-    URL = 'https://ebid.lh.or.kr/ebid.et.tp.cmd.BidsrvcsDetailListCmd.dev?bidNum='
+    URL = 'https://ebid.etri.re.kr/ebid/index.do'
+    D_URL = 'https://ebid.etri.re.kr/ebid/download.do'
+    
 
-    def file_url(savename, filename):
-        return 'https://ebid.lh.or.kr/ebid.framework.download.dev?download.filespec=bidinfo&download.filename=' + filename + '&download.savedname=' + savename + '&download.bidnum='
-
+key_list = [
+    'No',
+    '사업자번호',
+    '업체명',
+    '대표자',
+    '입찰금액',
+    '투찰율',
+    '추첨번호',
+    '입찰일시',
+    '비고'
+    ]
 
 label_list = [
     "국내/국제",

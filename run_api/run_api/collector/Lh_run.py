@@ -1,19 +1,21 @@
 from datetime import datetime, timedelta
+import time
+import schedule
 import argparse
 import sys
 from lib.config import LH_Api
 from run_LH_announce import LHAnnounceRunner
 from run_LH_result import LHResultRunner
 from run_ETRI_result import ETRIResultRunner
-
+from run_ETRI_announce import ETRIAnnounceRunner
 
 class Runner():
     key = LH_Api.key
-    
+
     default_begin = None
     default_end = None
     is_force = False
-    
+
     def set_force_term(self, begin, end):
         self.default_begin = begin
         self.default_end = end
@@ -27,11 +29,14 @@ class Runner():
         # if self.process_run(LHResultRunner) is False:
         #     return False
         # 입찰공고
-        if self.process_run(LHAnnounceRunner) is False:
-            return False
-        # 결과
+        # if self.process_run(LHAnnounceRunner) is False:
+        #     return False
+        # # 결과
         if self.process_run(ETRIResultRunner) is False:
             return False
+        # 입찰공고
+        # if self.process_run(ETRIAnnounceRunner) is False:
+        #     return False
 
 
     def process_run(self, cls, term_days=0):
@@ -60,6 +65,16 @@ class Runner():
             return False
 
 
+def schedule_run():
+    now = datetime.now().strftime("%Y%d%d")
+    runner = Runner()
+    runner.set_force_term(now, now)
+    runner.run()
+
+
+# schedule.every(1).minutes.do(schedule_run)
+schedule.every(10).seconds.do(schedule_run)
+
 if __name__ == '__main__':
     #인자 넣어주기
     parser = argparse.ArgumentParser()
@@ -69,7 +84,6 @@ if __name__ == '__main__':
     parser.add_argument('--end', required=True, help='yyyyMMdd')
     #인자 받아오기
     args = parser.parse_args()
-
 
     try:
         #시간 가져오기  (년 월 일 시간 분)
@@ -82,3 +96,7 @@ if __name__ == '__main__':
     runner = Runner()
     runner.set_force_term(args.begin, args.end)
     runner.run()
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)

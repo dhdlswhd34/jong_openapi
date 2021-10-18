@@ -1,5 +1,4 @@
 import time
-
 from lib.state import StateCode
 from api import G2B
 from data import G2BData
@@ -9,7 +8,7 @@ from lib.logger import Logger
 from lib.db import Db
 
 
-class ETRIResultRunner():
+class ETRIAnnounceRunner():
     rows = 10
     sleep_time = 1
 
@@ -28,7 +27,7 @@ class ETRIResultRunner():
             state_code = StateCode.END
 
         """
-        #DB부분
+        # DB부분
         self.db = Db(self.logger)
         self.db.connect()
         self.db.autocommit(False)
@@ -36,7 +35,7 @@ class ETRIResultRunner():
         try:
             g2b_data = G2BData()
             bid_list = []
-            bid_list.append(g2b_data.get_ETRI_result())
+            bid_list.append(g2b_data.get_ETRI_announce())
 
             # 공고번호 및 차수 넣기 -> db에서 가져오기 -> 현재는 설정
             self.bidnum = 'EA20212948'
@@ -66,11 +65,10 @@ class ETRIResultRunner():
             g2b.set_query_url(f'{url}?{query}')
             # g2b.set_page(page, self.rows)
             # 기존과 다른점 -> api걸치지 않고 바로
-            if g2b.get_ETRI_items(4) is False:
+            if g2b.get_ETRI_items(3) is False:
                 return False
 
             # if page == 1:
-            #     print('------------------')
             #     self.logger.debug(f'total count({g2b.total_count})')
 
             #     if g2b.total_count <= 0:
@@ -81,7 +79,7 @@ class ETRIResultRunner():
             if self.item_insert(table, g2b.item_data) is False:
                 return False
 
-            break #체크포인트
+            break # 체크포인트
 
             if g2b.page_count <= page:
                 break
@@ -89,7 +87,6 @@ class ETRIResultRunner():
             page += 1
 
             time.sleep(self.sleep_time)
-
 
     def item_insert(self, table, sql_data):
         if sql_data:
