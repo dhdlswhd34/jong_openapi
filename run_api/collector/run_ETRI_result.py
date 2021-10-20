@@ -1,13 +1,11 @@
 import time
 
-from requests import api
-from lib.config import LH_Api
 from lib.state import StateCode
 from api import G2B
 from data import G2BData
 
 from lib.logger import Logger
-#DB
+# DB
 from lib.db import Db
 
 
@@ -52,7 +50,7 @@ class ETRIResultRunner():
                 else:
                     self.db.commit()
         except Exception as e:
-            print("ERROR g2b")
+            self.logger.error(e)
         finally:
             print("FIN")
             self.db.close()
@@ -62,24 +60,23 @@ class ETRIResultRunner():
         print('url start')
 
         g2b = G2B(self.begin, self.end)
-
         page = 1
         while True:
             query = f'biNo={self.bidnum}({self.degree})'
             g2b.set_query_url(f'{url}?{query}')
             # g2b.set_page(page, self.rows)
-
             # 기존과 다른점 -> api걸치지 않고 바로
-            if g2b.get_ETRI_webc(2) is False:
+            if g2b.get_ETRI_items(4) is False:
                 return False
 
-            if page == 1:
-                self.logger.debug(f'total count({g2b.total_count})')
+            # if page == 1:
+            #     print('------------------')
+            #     self.logger.debug(f'total count({g2b.total_count})')
 
-                if g2b.total_count <= 0:
-                    break
+            #     if g2b.total_count <= 0:
+            #         break
 
-            self.logger.debug(f'page count({g2b.page_count}), page({page})')
+            # self.logger.debug(f'page count({g2b.page_count}), page({page})')
 
             if self.item_insert(table, g2b.item_data) is False:
                 return False

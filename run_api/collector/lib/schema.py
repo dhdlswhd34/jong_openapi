@@ -22,6 +22,28 @@ class Schema():
                 "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
                 PRIMARY KEY("seq")
             )
+            ''',
+            '''
+            CREATE TABLE IF NOT EXISTS "public"."raw_etri_result" (
+                "seq" BIGSERIAL,
+                "begin_dt" CHAR(12) NOT NULL,
+                "end_dt" CHAR(12) NOT NULL,
+                "text" JSON NOT NULL,
+                "process" SMALLINT DEFAULT 0 NOT NULL,
+                "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
+                PRIMARY KEY("seq")
+            )
+            ''',
+            '''
+            CREATE TABLE IF NOT EXISTS "public"."raw_etri_announce" (
+                "seq" BIGSERIAL,
+                "begin_dt" CHAR(12) NOT NULL,
+                "end_dt" CHAR(12) NOT NULL,
+                "text" JSON NOT NULL,
+                "process" SMALLINT DEFAULT 0 NOT NULL,
+                "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
+                PRIMARY KEY("seq")
+            )
             '''
         ]
     def get_index_list(self):
@@ -29,7 +51,11 @@ class Schema():
             'CREATE INDEX ON "raw_lh_announce"("process") WHERE "process" = 0',
             'CREATE INDEX ON "raw_lh_announce"("reg_dt")',
             'CREATE INDEX ON "raw_lh_result"("process") WHERE "process" = 0',
-            'CREATE INDEX ON "raw_lh_result"("reg_dt")'
+            'CREATE INDEX ON "raw_lh_result"("reg_dt")',
+            'CREATE INDEX ON "raw_etri_result"("process") WHERE "process" = 0',
+            'CREATE INDEX ON "raw_etri_result"("reg_dt")',
+            'CREATE INDEX ON "raw_etri_announce"("process") WHERE "process" = 0',
+            'CREATE INDEX ON "raw_etri_announce"("reg_dt")'
         ]
 
 if __name__ == '__main__':

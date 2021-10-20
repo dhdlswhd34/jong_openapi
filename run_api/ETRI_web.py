@@ -13,6 +13,7 @@ if __name__ == '__main__':
     start = '20211015'
     end = '20211018'
     query = f'?pageNo={pagenum}&search=Y&sch_fromDate={start}&sch_toDate={end}'
+    year = '2021'
 
 # 쿠키
     url = 'https://ebid.etri.re.kr/ebid/index.do'
@@ -37,14 +38,11 @@ if __name__ == '__main__':
 
     temp = []
     for value in soup_obj.find('table', id='table01').find_all('tr'):
-        temp = re.search('EA.+\)', value.text.strip())
+        # temp = re.search(f'E.{year}.+\)', value.text.strip())
+        temp = re.search(f'EA.+\)', value.text.strip())
+        # temp = re.search('EP.+\)', value.text.strip())
         if temp is not None:
             print(temp.group())
 
     print(url)
     print(temp)
-
-    
-
-
-    
