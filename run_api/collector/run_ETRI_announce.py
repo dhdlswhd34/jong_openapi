@@ -37,10 +37,6 @@ class ETRIAnnounceRunner():
             bid_list = []
             bid_list.append(g2b_data.get_ETRI_announce())
 
-            # 공고번호 및 차수 넣기 -> db에서 가져오기 -> 현재는 설정
-            self.bidnum = 'EA20212948'
-            self.degree = '01'
-
             for url, table in bid_list:
                 if self.url(url, table) is False:
                     # state_code = StateCode.ERROR
@@ -59,34 +55,29 @@ class ETRIAnnounceRunner():
         print('url start')
 
         g2b = G2B(self.begin, self.end)
+
+        if g2b.get_ETRI_cookie() is False:
+            return False
+        self.header = {'Cookie': g2b.cookie}
+    
         page = 1
         while True:
-            query = f'biNo={self.bidnum}({self.degree})'
-            g2b.set_query_url(f'{url}?{query}')
-            # g2b.set_page(page, self.rows)
-            # 기존과 다른점 -> api걸치지 않고 바로
-            if g2b.get_ETRI_items(3) is False:
-                return False
-
-            # if page == 1:
-            #     self.logger.debug(f'total count({g2b.total_count})')
-
-            #     if g2b.total_count <= 0:
-            #         break
-
-            # self.logger.debug(f'page count({g2b.page_count}), page({page})')
-
-            if self.item_insert(table, g2b.item_data) is False:
-                return False
-
-            break # 체크포인트
-
-            if g2b.page_count <= page:
+            # 공고번호 차수 가져오기
+            if g2b.get_ETRI_query_data(page, self.header, 3) == 'end':
                 break
-
             page += 1
+            # time.sleep(self.sleep_time)
 
-            time.sleep(self.sleep_time)
+        # 1:입찰공고 2:개찰결과 3:견적문의
+        g2b.check_ETRI_query_data(1)
+
+        g2b.set_query_url(f'{url}')
+
+        if g2b.get_ETRI_items(3) is False:
+            return False
+
+        if self.item_insert(table, g2b.item_data) is False:
+            return False
 
     def item_insert(self, table, sql_data):
         if sql_data:

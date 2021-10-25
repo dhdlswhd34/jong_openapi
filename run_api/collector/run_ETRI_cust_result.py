@@ -9,7 +9,7 @@ from lib.logger import Logger
 from lib.db import Db
 
 
-class ETRIResultRunner():
+class ETRICustResultRunner():
     rows = 10
     sleep_time = 1
 
@@ -19,16 +19,7 @@ class ETRIResultRunner():
         self.end = end
 
     def exec(self):
-        state_code = StateCode.PROCEEDING
-
-        """
-        if State.update_state(self.logger, __class__, __file__, state_code, self.begin, self.end) is False:
-            return False
-        else:
-            state_code = StateCode.END
-
-        """
-        #DB부분
+        # DB부분
         self.db = Db(self.logger)
         self.db.connect()
         self.db.autocommit(False)
@@ -36,7 +27,7 @@ class ETRIResultRunner():
         try:
             g2b_data = G2BData()
             bid_list = []
-            bid_list.append(g2b_data.get_ETRI_result())
+            bid_list.append(g2b_data.get_ETRI_cust_result())
 
             for url, table in bid_list:
                 if self.url(url, table) is False:
@@ -50,7 +41,6 @@ class ETRIResultRunner():
         finally:
             print("FIN")
             self.db.close()
-            # State.update_state(self.logger, __class__, __file__, state_code, self.begin, self.end)
 
     def url(self, url, table):
         print('url start')
@@ -63,16 +53,18 @@ class ETRIResultRunner():
 
         page = 1
         while True:
-            if g2b.get_ETRI_query_data(page, self.header, 4) == 'end':
+            # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
+            if g2b.get_ETRI_query_data(page, self.header, 6) == 'end':
                 break
             page += 1
 
-        # 1:입찰공고 2:개찰결과 3:견적문의
-        g2b.check_ETRI_query_data(2)
+        # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
+        g2b.check_ETRI_query_data(4)
 
         g2b.set_query_url(f'{url}')
 
-        if g2b.get_ETRI_items(4) is False:
+        # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
+        if g2b.get_ETRI_items(6) is False:
             return False
 
         if self.item_insert(table, g2b.item_data) is False:

@@ -8,6 +8,9 @@ from run_LH_announce import LHAnnounceRunner
 from run_LH_result import LHResultRunner
 from run_ETRI_result import ETRIResultRunner
 from run_ETRI_announce import ETRIAnnounceRunner
+from run_ETRI_cust import ETRICustRunner
+from run_ETRI_cust_result import ETRICustResultRunner
+
 
 class Runner():
     key = LH_Api.key
@@ -32,12 +35,17 @@ class Runner():
         # if self.process_run(LHAnnounceRunner) is False:
         #     return False
         # # 결과
-        if self.process_run(ETRIResultRunner) is False:
-            return False
-        # 입찰공고
-        # if self.process_run(ETRIAnnounceRunner) is False:
+        # if self.process_run(ETRIResultRunner) is False:
         #     return False
-
+        # # 입찰공고
+        if self.process_run(ETRIAnnounceRunner) is False:
+            return False
+        # # 견적요청
+        if self.process_run(ETRICustRunner) is False:
+            return False
+        # # 견적결과0
+        # if self.process_run(ETRICustResultRunner) is False:
+        #     return False
 
     def process_run(self, cls, term_days=0):
         name = cls.__name__
@@ -68,12 +76,12 @@ class Runner():
 def schedule_run():
     now = datetime.now().strftime("%Y%d%d")
     runner = Runner()
-    runner.set_force_term(now, now)
+    runner.set_force_term(args.begin, args.end)
     runner.run()
 
 
-# schedule.every(1).minutes.do(schedule_run)
-schedule.every(10).seconds.do(schedule_run)
+schedule.every(5).minutes.do(schedule_run)
+# schedule.every(10).seconds.do(schedule_run)
 
 if __name__ == '__main__':
     #인자 넣어주기

@@ -9,7 +9,6 @@ class LH_web:
     def file_url(savename, filename):
         return 'https://ebid.lh.or.kr/ebid.framework.download.dev?download.filespec=bidinfo&download.filename=' + filename + '&download.savedname=' + savename + '&download.bidnum='
 
-
 label_list = [
     "국내/국제",
     "최초공고등록일",

@@ -264,10 +264,20 @@ class G2BData():
 
     def get_ETRI_result(self):
         url = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustInfoResultView.do'
-        table = 'raw_ETRI_result'
+        table = 'raw_etri_result'
         return [url, table]
 
     def get_ETRI_announce(self):
         url = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustInfoMainView.do'
-        table = 'raw_ETRI_announce'
+        table = 'raw_etri_announce'
+        return [url, table]
+
+    def get_ETRI_cust(self):
+        url = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustInfoMainView.do'
+        table = 'raw_etri_cust'
+        return [url, table]
+
+    def get_ETRI_cust_result(self):
+        url = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustInfoResultView.do'
+        table = 'raw_etri_cust_result'
         return [url, table]

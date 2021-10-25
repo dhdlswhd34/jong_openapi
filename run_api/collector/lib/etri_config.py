@@ -1,7 +1,10 @@
+
 class ETRI_web:
     URL = 'https://ebid.etri.re.kr/ebid/index.do'
     D_URL = 'https://ebid.etri.re.kr/ebid/download.do'
-    
+    check_URL = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustProgressList.do'
+    cust_URL = 'https://ebid.etri.re.kr/ebid/ebid/ebidEstmtRqstList.do'
+    ex_info_URL = 'https://ebid.etri.re.kr/ebid/ebid/ebidCustInfoExAmtView.do'
 
 key_list = [
     'No',
@@ -15,24 +18,10 @@ key_list = [
     '비고'
     ]
 
-label_list = [
-    "국내/국제",
-    "최초공고등록일",
-    "가격점수제외금액",
-    "낙찰제외기준금액",
-    "비고",
-    "공고변경사유",
-    "입찰방식",
-    "낙찰자선정방법",
-    "심사적용기준",
-    "지문인식공고여부",
-    "재입찰",
-    "PQ심사실시여부",
-    "PQ심사신청서접수기한",
-    "용역유형",
-    "품명",
-    "공사종류",
-    "업종유형",
-    "공종별내역서",
-    "공고변경정보"
-]
+p_list = [
+    '진행',
+    '개찰',
+    '견적완료',
+    '입찰완료',
+    '완료(유찰)'
+    ]

@@ -6,8 +6,9 @@ import xmltodict
 import requests
 from bs4 import BeautifulSoup
 from lib.lh_config import LH_web, label_list
-from lib.etri_config import ETRI_web, key_list
+from lib.etri_config import ETRI_web, p_list 
 from urllib.parse import quote_plus
+from functools import reduce
 import re
 
 
@@ -23,6 +24,7 @@ class G2B:
         self.begin = begin
         self.end = end
         self.filtering = filtering
+        self.result_arr = []
 
     def set_query_url(self, url):
         self.url = url
@@ -121,11 +123,9 @@ class G2B:
 
 # common_API
     def strip_re(self, body):
-        del_list = {'\r', '\n', '\t'}
+        del_list = ['\r', '\n', '\t']
         body = body.text.strip()
-        for value in del_list:
-            body = body.replace(value, '')
-        return body
+        return reduce(lambda src, filter: src.replace(filter, ''), del_list, body)
 
 # LH_API
     def get_LH_items(self, type):
@@ -222,12 +222,15 @@ class G2B:
         return False
 
 # ETRI_API
+    # 쿠키 가져오기
     def get_ETRI_cookie(self):
+        self.header = {}
         response = requests.get(ETRI_web.URL)
 
         if response.status_code == 200:
             header = response.headers
             self.cookie = header['Set-Cookie']
+            self.header = {'Cookie': self.cookie}
             return True
         else:
             print(response.status_code)
@@ -235,40 +238,136 @@ class G2B:
 
     def get_etri_file(self, body):
         temp = re.search('\'.+\'', body['onclick']).group()[1:]
-        temp = temp.replace('\'', '')
-        temp = temp.replace(' ', '')
+        temp = reduce(lambda src, filter: src.replace(filter, ''), ['\'', ' '], temp)
         temp = temp.split(',')
         url = f'{ETRI_web.D_URL}?file_id={temp[0]}&file_gb={temp[1]}'
-
         return url
+
+    # 파일 체크
+    def check_ETRI_query_data(self, type):
+        self.bidunm_degree = []
+
+        list_arr = []
+        if(type == 1):
+            txt = 'etri_announce.txt'
+        elif(type == 2):
+            txt = 'etri_result.txt'
+        elif(type == 3):
+            txt = 'etri_cust.txt'
+        elif(type == 4):
+            txt = 'etri_cust_result.txt'
+
+        f = open(f'{txt}', 'rt', encoding='UTF8')
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            line = line.split(',')
+            list_arr.append(line)
+        f.close()
+
+        f = open(f'{txt}', 'a+', encoding='UTF8')
+        for bs in self.result_arr:
+            i = 1
+            for txt in list_arr:
+                if(txt[0:4] == bs):
+                    i = 0
+                    break
+            if(i == 1):
+                current_time = datetime.now()
+                f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{current_time}\n')
+                self.bidunm_degree.append([bs[0], bs[3]])
+        f.close()
+
+    # 웹크롤링으로 가져오기
+    def get_ETRI_query_data(self, page, headerr, type):
+        temp_arr = []
+
+        if(type == 3):
+            query = f'?pageNo={page}&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
+            url = ETRI_web.check_URL + query
+        elif(type == 4):
+            query = f'?pageNo={page}&pageGb=C&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
+            url = ETRI_web.check_URL + query
+        elif(type == 5):
+            query = f'?pageNo={page}&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
+            url = ETRI_web.cust_URL + query
+        elif(type == 6):
+            query = f'?pageNo={page}&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
+            url = ETRI_web.cust_URL + query
+            check = '견적완료'
+        k = 0
+        for i in range(self.query_retry):
+            try:
+                with requests.get(url, headers=self.header) as response_result:
+                    if response_result.status_code == 200:
+                        html = response_result.text
+                        soup_obj = BeautifulSoup(html, 'html.parser')
+                    else:
+                        return False
+                    for value in soup_obj.find('table', id='table01').find_all('tr'):
+                        for body in value.find_all('td'):
+                            if body.text.strip() == '자료가 존재하지 않습니다.':
+                                k = -1
+                                break
+                            temp = re.search(f'E[A-Z]2021.+\)', body.text.strip())
+                            temp_S = re.search('[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}', body.text.strip())
+                            if temp is not None:
+                                print(temp.group())
+                                temp_arr.append(temp.group())
+                            if temp_S is not None:
+                                # print(temp_S.group())
+                                temp_arr.append(temp_S.group())
+                            for match in p_list:
+                                if match == self.strip_re(body):
+                                    if(type == 6 and check != match):
+                                        temp_arr = []
+                                        break
+                                    temp_arr.append(self.strip_re(body))
+                                    break
+                        if len(temp_arr) > 1:
+                            self.result_arr.append(temp_arr)
+                        temp_arr = []
+                    if(k == -1):
+                        print(url)
+                        return 'end'
+                    # return True
+                    return 'end'
+            except Exception as e:
+                self.logger.error(e)
+        return False
 
     def get_ETRI_items(self, type):
         try:
             self.item_data = []
-            if type == 3:   # 입찰공고
-                item = self.get_ETRI_announce(self.url)
-                self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
-            elif type == 4: # 개찰결과
-                item = self.get_ETRI_result(self.url)
-                self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
+            for bidnum_degree in self.bidunm_degree:
+                url = f'{self.url}?biNo={bidnum_degree[0]}'
+                print(url)
+                if type == 3:   # 입찰공고
+                    item = self.get_ETRI_announce(url)
+                    item.update(self.get_ETRI_ex_info(ETRI_web.ex_info_URL,bidnum_degree[0]))
+                    self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
+                elif type == 4:  # 개찰결과
+                    item = self.get_ETRI_result(url)
+                    self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
+                elif type == 5:  # 견적요청
+                    item = self.get_ETRI_announce(url)
+                    item.update(self.get_ETRI_ex_info(ETRI_web.ex_info_URL,bidnum_degree[0]))
+                    self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
+                elif type == 6:  # 견적요청
+                    item = self.get_ETRI_result(url)
+                    self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
             return True
         except KeyError as e:
             self.logger.error(e)
         return False
 
     def get_ETRI_announce(self, url):
-        item_arr = []
-        item_dic = {}
-        temp_arr = []
-        result_dic = {}
-
         # 쿠키 가져오기
         if self.get_ETRI_cookie() is False:
             return False
 
-        # 쿠키 넣어주기
-        header = {'Cookie': self.cookie}
-        response = requests.get(url, headers=header)
+        response = requests.get(url, headers=self.header)
 
         if response.status_code == 200:
             html = response.text
@@ -278,9 +377,13 @@ class G2B:
 
         if (self.soup_obj.find_all('table', id='table01')) is not None:
             i = 0
+            result_dic = {}
             for value in self.soup_obj.find_all('table', id='table01'):
                 j = 0
-                if (i == 0):    # 공고번호
+                temp_arr = []
+                item_arr = []
+                item_dic = {}
+                if (i == 0):    # 공고번호 정보
                     item_arr = []
                     for body in value.find_all('td', class_='name02'):
                         item_arr.append(self.strip_re(body))
@@ -301,15 +404,11 @@ class G2B:
                             result_dic[item_arr[j]] = self.strip_re(body)
                             j += 1
                 if(i == 1):     # 입찰 일정
-                    j = 0
-                    temp_arr = []
-                    item_arr = []
-                    item_dic = {}
                     result_dic['입찰일정'] = []
                     for body in value.find_all('td', class_='list01'):
                         temp_arr.append(self.strip_re(body))
                     for body in value.find_all('td', class_=''):
-                        if(j == 5):
+                        if(j == len(temp_arr) - 1):
                             item_dic[temp_arr[j]] = self.strip_re(body)
                             j = 0
                             item_arr.append(item_dic)
@@ -322,9 +421,6 @@ class G2B:
                 if(i == 2):     # 입찰참고사항
                     result_dic[value.find('td', class_='name02').text.strip()] = value.find('textarea').text.strip()
                 if(i == 3):     # 가격정보
-                    temp_arr = []
-                    item_arr = []
-                    item_dic = {}
                     result_dic['가격정보(단위:원)'] = {}
                     for body in value.find_all('td', class_='name02'):
                         temp_arr.append(self.strip_re(body))
@@ -335,11 +431,23 @@ class G2B:
                         else:
                             item_dic[temp_arr[j]] = self.strip_re(body)
                             j += 1
-                if(i == 4):     # 입찰공고안내서류
-                    j = 0
-                    temp_arr = []
-                    item_arr = []
-                    item_dic = {}
+                if(i >= 4) and len(value.find_all('td', class_='name02')) > 1:     # 적격심사 세부기준
+                    result_dic['적격심사 세부기준'] = []
+                    for body in value.find_all('td', class_='name02'):
+                        temp_arr.append(self.strip_re(body))
+                    print(self.strip_re(body))
+                    for body in value.find_all('td', class_=''):
+                        if(j == (len(temp_arr) - 1)):
+                            item_dic[temp_arr[j]] = self.strip_re(body)
+                            j = 0
+                            item_arr.append(item_dic)
+                            result_dic['적격심사 세부기준'].append(item_arr)
+                            item_dic = {}
+                            item_arr = []
+                        else:
+                            item_dic[temp_arr[j]] = self.strip_re(body)
+                            j += 1
+                if(i >= 4) and (value.find_all('td', class_='list01')) is not None:     # 입찰공고안내서류
                     result_dic['입찰공고안내서류'] = []
                     for body in value.find_all('td', class_='list01'):
                         temp_arr.append(self.strip_re(body))
@@ -359,16 +467,12 @@ class G2B:
         return result_dic
 
     def get_ETRI_result(self, url):
-        item_arr = []
-        item_dic = {}
-        result_dic = {}
         # 쿠키 가져오기
         if self.get_ETRI_cookie() is False:
             return False
 
         # 쿠키 넣어주기
-        header = {'Cookie': self.cookie}
-        response = requests.get(url, headers=header)
+        response = requests.get(url, headers=self.header)
 
         if response.status_code == 200:
             html = response.text
@@ -377,10 +481,13 @@ class G2B:
             print(response.status_code)
 
         if (self.soup_obj.find('table', id='table01')) is not None:
-            result_dic = {}
             i = 0
+            result_dic = {}
             for value in self.soup_obj.find_all('table', id='table01'):
                 j = 0
+                temp_arr = []
+                item_arr = []
+                item_dic = {}
                 if (i == 1):
                     for body in value.find_all('td'):
                         if j == 0:
@@ -389,8 +496,11 @@ class G2B:
                         else:
                             result_dic[temp] = self.strip_re(body)
                             j = 0
-                elif (i == 2):
+                if (i == 2):
                     for body in value.find_all('tr'):
+                        if body.find('td', class_='name02') is None:
+                            i += 1
+                            break
                         if j == 0:
                             for item in body.find_all('td'):
                                 result_dic[item.text.strip()] = []
@@ -403,12 +513,9 @@ class G2B:
                             item_arr.append(body.find_all('td', class_='list01')[-1].text.strip())
                             result_dic['추첨결과 및 예정가격'].append(item_arr)
                             item_arr = []
-                elif (i == 3):
-                    temp_arr = []
-                    item_arr = []
-                    item_dic = {}
+                if (i == 3):
                     result_dic['개찰결과'] = []
-                    for body in value.find_all('td', class_ ='list01'):
+                    for body in value.find_all('td', class_='list01'):
                         temp_arr.append(self.strip_re(body))
                     for body in value.find_all('td', class_=''):
                         if (j == (len(temp_arr) - 1)):
@@ -424,7 +531,51 @@ class G2B:
                 i += 1
         else:
             return False
-        
         return result_dic
 
+    def get_ETRI_ex_info(self, url,bidnum_degree):
+        # 쿠키 가져오기
+        if self.get_ETRI_cookie() is False:
+            return False
 
+        url = url + f'?biNo={bidnum_degree}'
+        # 쿠키 넣어주기
+        response = requests.get(url, headers=self.header)
+
+        if response.status_code == 200:
+            html = response.text
+            self.soup_obj = BeautifulSoup(html, 'html.parser')
+        else:
+            print(response.status_code)
+
+        if (self.soup_obj.find('table', id='table01')) is not None:
+            result_dic = {}
+            i = 0
+            for value in self.soup_obj.find_all('table', id='table01'):
+                j = 0
+                temp_arr = []
+                item_arr = []
+                item_dic = {}
+                if(i == 1):
+                    result_dic['물품내역'] = []
+                    for body in value.find_all('td', class_='list01'):
+                        if(self.strip_re(body) == '물품명세'):
+                            temp_arr.append(self.strip_re(body))
+                            break
+                        temp_arr.append(self.strip_re(body))
+                    for body in value.find_all('td', class_=''):
+                        if(j == len(temp_arr)-1):
+                            item_dic[temp_arr[j]] = self.strip_re(body)
+                            # print(item_dic)
+                            j = 0
+                            item_arr.append(item_dic)
+                            result_dic['물품내역'].append(item_arr)
+                            item_dic = {}
+                            item_arr = []
+                        else:
+                            item_dic[temp_arr[j]] = self.strip_re(body)
+                            j += 1
+                i += 1
+        else:
+            return False
+        return result_dic
