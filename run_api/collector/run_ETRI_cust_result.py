@@ -27,11 +27,10 @@ class ETRICustResultRunner():
         try:
             g2b_data = G2BData()
             bid_list = []
-            bid_list.append(g2b_data.get_ETRI_cust_result())
+            bid_list.append(g2b_data.get_ETRI_cust_result())    # URL, DB테이블 받아오기
 
             for url, table in bid_list:
-                if self.url(url, table) is False:
-                    # state_code = StateCode.ERROR
+                if self.url(url, table) is False:   # URL 접근
                     self.db.rollback()
                     return False
                 else:
@@ -45,29 +44,29 @@ class ETRICustResultRunner():
     def url(self, url, table):
         print('url start')
 
-        g2b = G2B(self.begin, self.end)
+        g2b = G2B(self.begin, self.end) # API 가져오기
 
         if g2b.get_ETRI_cookie() is False:
             return False
-        self.header = {'Cookie': g2b.cookie}
+        self.header = {'Cookie': g2b.cookie}    # 접근시 쿠키 필요(ETRI)
 
         page = 1
         while True:
             # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
-            if g2b.get_ETRI_query_data(page, self.header, 6) == 'end':
+            if g2b.get_ETRI_query_data(page, self.header, 6) == 'end':  # 결과 목록 리스트 공고번호 가져오기
                 break
             page += 1
 
         # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
-        g2b.check_ETRI_query_data(4)
+        g2b.check_ETRI_query_data(4)    # 새로운 리스트 유무 탐색
 
-        g2b.set_query_url(f'{url}')
+        g2b.set_query_url(f'{url}')     # 데이터 크롤링을 위한 url
 
         # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
         if g2b.get_ETRI_items(6) is False:
             return False
 
-        if self.item_insert(table, g2b.item_data) is False:
+        if self.item_insert(table, g2b.item_data) is False: # DB에 넣기
             return False
 
     def item_insert(self, table, sql_data):
