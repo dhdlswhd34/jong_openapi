@@ -43,7 +43,7 @@ class Runner():
         # # 견적요청
         if self.process_run(ETRICustRunner) is False:
             return False
-        # # 견적결과0
+        # # 견적결과
         # if self.process_run(ETRICustResultRunner) is False:
         #     return False
 
@@ -79,8 +79,8 @@ def schedule_run():
     runner.set_force_term(args.begin, args.end)
     runner.run()
 
-
-schedule.every(5).minutes.do(schedule_run)
+# 30분 단위로 실행
+schedule.every(30).minutes.do(schedule_run)
 # schedule.every(10).seconds.do(schedule_run)
 
 if __name__ == '__main__':
