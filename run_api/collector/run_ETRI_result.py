@@ -54,15 +54,17 @@ class ETRIResultRunner():
 
         page = 1
         while True:
+            # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
             if g2b.get_ETRI_query_data(page, self.header, 4) == 'end':  # 결과 목록 리스트 공고번호 가져오기
                 break
             page += 1
 
-        # 1:입찰공고 2:개찰결과 3:견적문의
+        # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
         g2b.check_ETRI_query_data(2)    # 새로운 리스트 유무 탐색
 
         g2b.set_query_url(f'{url}')     # 데이터 크롤링을 위한 url
-
+        
+        # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
         if g2b.get_ETRI_items(4) is False:  # 개찰 결과 크롤링
             return False
 
