@@ -54,8 +54,12 @@ class ETRIAnnounceRunner():
         page = 1
         while True:
              # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
-            if g2b.get_ETRI_query_data(page, self.header, 3) == 'end':  # 결과 목록 리스트 공고번호 가져오기
+            state = g2b.get_ETRI_query_data(page, self.header, 3)
+            if state == 'end':  # 결과 목록 리스트 공고번호 가져오기
                 break
+            elif state == 'back':
+                page = 0
+                g2b.result_arr.clear()
             page += 1
             # time.sleep(self.sleep_time)
 

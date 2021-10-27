@@ -6,11 +6,16 @@ import xmltodict
 import requests
 from bs4 import BeautifulSoup
 from lib.lh_config import LH_web, label_list
-from lib.etri_config import ETRI_web, p_list 
+from lib.etri_config import ETRI_web
+from lib.etri_config import announce_enum as an
+from lib.etri_config import result_enum as rn
+from lib.etri_config import ex_enum as en
 from urllib.parse import quote_plus
 from functools import reduce
+import pandas as pd
 import re
 
+from lib.db import Db
 
 class G2B:
     query_retry = 50
@@ -241,12 +246,26 @@ class G2B:
         temp = re.search('\'.+\'', body['onclick']).group()[1:]
         temp = reduce(lambda src, filter: src.replace(filter, ''), ['\'', ' '], temp)
         temp = temp.split(',')
-        url = f'{ETRI_web.D_URL}?file_id={temp[0]}&file_gb={temp[1]}'
+        url = f'{ETRI_web.D_URL}?file_id={quote_plus(temp[0])}&file_gb={quote_plus(temp[1])}'
         return url
+
+    def check_change_list(self, page):
+        for last in self.result_arr[page-2]:
+            for now in self.result_arr[page-1]:
+                if last == now:
+                    return False
+        return True
+
+    def item_insert(self, table, sql_data):
+        if sql_data:
+            sql = f'insert into {table}(begin_dt, end_dt, text) values(%s, %s, %s)'
+            if self.db.bulk_execute(sql, sql_data) is False:
+                return False
+            else:
+                self.logger.debug(f'table({table}), insert count({len(sql_data)})')
 
     # 공고번호, 시작, 종료 리스트 목록 가져오기
     def get_ETRI_query_data(self, page, headerr, type):
-        temp_arr = []
 
         # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
         if(type == 3):
@@ -263,7 +282,6 @@ class G2B:
             url = ETRI_web.cust_URL + query
             check = '견적완료'  # 견적완료는 따로 check
 
-        k = 0
         for i in range(self.query_retry):
             try:
                 with requests.get(url, headers=self.header) as response_result:
@@ -272,34 +290,34 @@ class G2B:
                         soup_obj = BeautifulSoup(html, 'html.parser')
                     else:
                         return False
-                    for value in soup_obj.find('table', id='table01').find_all('tr'):
-                        for body in value.find_all('td'):
-                            if body.text.strip() == '자료가 존재하지 않습니다.':   # 마지막 페이지
-                                k = -1
-                                break
-                            # 공고번호 차수
-                            temp = re.search(f'E[A-Z]{self.begin[0:4]}.+\)', body.text.strip())      # ex) EA20210000(01) EP~ ,EE~
-                            # 시작일시 , 종료일시 
-                            temp_S = re.search('[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}', body.text.strip())   #ex) 2021-00-00 00:00 (년-월-일 시:분) 
-                            if temp is not None:
-                                temp_arr.append(temp.group())
-                            if temp_S is not None:
-                                temp_arr.append(temp_S.group())
-                            # 진행 상태 (ex. 진행, 개찰, 유찰 등등)
-                            for match in p_list:
-                                if match == self.strip_re(body):
-                                    if(type == 6 and check != match):   # 견적결과는 따로 체크 후 저장
-                                        temp_arr = []
-                                        break
-                                    temp_arr.append(self.strip_re(body))
-                                    break
-                        if len(temp_arr) > 1:
-                            self.result_arr.append(temp_arr)    # 저장 (ex. [공고번호(차수), 입찰시작일, 입찰종료일, 진행상태])
-                        temp_arr = []
-                    if(k == -1):
-                        print(url)
-                        return 'end'    # 마지막 페이지
+
+                    table = soup_obj.find('table', id='table01')
+                    tables = pd.read_html(str(table))
+                    print(tables[0])
+                    print(url)
+                    if(tables[0][0][1] == '자료가 존재하지 않습니다.'):
+                        return 'end'
+
+                    # 새로들어온 리스트 체크
+                    if page > 2:
+                        if self.check_change_list(page) is False:
+                            return 'back'
+
+                    if (type == 6):
+                        for j in range(1, len(tables[0][0])):
+                            if tables[0][6][j] == check:
+                                self.result_arr.append([tables[0][0][j], tables[0][3][j], tables[0][4][j], tables[0][6][j]])
+                    elif (type==3):
+                        # 저장 (ex. [공고번호(차수), 입찰시작일, 입찰종료일, 진행상태])
+                        self.result_arr.append([[tables[0][1][j], tables[0][4][j], tables[0][5][j], tables[0][7][j]] for j in range(1, len(tables[0][0]))])
+                    else:
+                        # 저장 (ex. [공고번호(차수), 입찰시작일, 입찰종료일, 진행상태])
+                        self.result_arr.append([[tables[0][0][j], tables[0][3][j], tables[0][4][j], tables[0][6][j]] for j in range(1, len(tables[0][0]))])
+                    if page == 2:
+                        print(self.result_arr)
+                        return 'end'
                     return True
+
             except Exception as e:
                 self.logger.error(e)
         return False
@@ -331,17 +349,59 @@ class G2B:
 
         # 추가 내용 저장
         f = open(f'{txt}', 'a+', encoding='UTF8')
-        for bs in self.result_arr:
-            i = 1
-            for txt in list_arr:
-                if(txt[0:4] == bs):     # 중복체크
-                    i = 0   # 중복인 경우 0
-                    break   # 발견시 break
-            if(i == 1):     # 새로운 데이터 저장
-                current_time = datetime.now()
-                f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{current_time}\n')    #저장 (ex. 공고번호(차수),입찰시작일,입찰종료일,진행상태,현재시각 )
-                self.bidunm_degree.append([bs[0], bs[3]])   # 새로운 리스트 공고번호 저장
+        for pg in self.result_arr:
+            for bs in pg:
+                i = 1
+                for txt in list_arr:
+                    if(txt[0:4] == bs):     # 중복체크
+                        i = 0   # 중복인 경우 0
+                        break   # 발견시 break
+                if(i == 1):     # 새로운 데이터 저장
+                    current_time = datetime.now()
+                    f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{current_time}\n')    #저장 (ex. 공고번호(차수),입찰시작일,입찰종료일,진행상태,현재시각 )
+                    self.bidunm_degree.append([bs[0], bs[3]])   # 새로운 리스트 공고번호 저장
         f.close()
+
+    def check_ETRI_query_data(self, type):
+        self.bidunm_degree = []
+
+        db = Db(self.logger)
+        db.connect()
+        db.autocommit(False)
+
+        # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
+        list_arr = []
+        if(type == 1):
+            table = 'raw_etri_announce_list'
+        elif(type == 2):
+            table = 'raw_etri_result_list'
+        elif(type == 3):
+            table = 'raw_etri_cust_list'
+        elif(type == 4):
+            table = 'raw_etri_cust_result_list'
+
+        # 마지막 데이터 불러오기
+        query = f'SELECT * FROM {table}'
+        db.cursor.execute(query)
+
+        db_list = db.cursor.fetchall()
+
+        # 추가 내용 저장
+        f = open(f'{txt}', 'a+', encoding='UTF8')
+        for pg in self.result_arr:
+            for bs in pg:
+                i = 1
+                for txt in list_arr:
+                    if(txt[0:4] == bs):     # 중복체크
+                        i = 0   # 중복인 경우 0
+                        break   # 발견시 break
+                if(i == 1):     # 새로운 데이터 저장
+                    current_time = datetime.now()
+                    f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{current_time}\n')    #저장 (ex. 공고번호(차수),입찰시작일,입찰종료일,진행상태,현재시각 )
+                    self.bidunm_degree.append([bs[0], bs[3]])   # 새로운 리스트 공고번호 저장
+        f.close()
+
+        db.close()
 
     # 데이터 크롤링
     def get_ETRI_items(self, type):
@@ -358,7 +418,7 @@ class G2B:
                     item = self.get_ETRI_result(url)
                     self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
                 elif type == 5:  # 견적요청
-                    item = self.get_ETRI_announce(url)  
+                    item = self.get_ETRI_announce(url)
                     item.update(self.get_ETRI_ex_info(ETRI_web.ex_info_URL,bidnum_degree[0]))   # 추가 탭 데이터 가져오기
                     self.item_data.append((self.begin, self.end, json.dumps(item, ensure_ascii=False)))
                 elif type == 6:  # 견적요청
@@ -371,6 +431,7 @@ class G2B:
 
     # 입찰공고 데이터
     def get_ETRI_announce(self, url):
+
         # 쿠키 가져오기
         if self.get_ETRI_cookie() is False:
             return False
@@ -391,7 +452,7 @@ class G2B:
                 temp_arr = []
                 item_arr = []
                 item_dic = {}
-                if (i == 0):    # 공고번호 정보
+                if (i == an.공고번호정보):    # 공고번호 정보
                     item_arr = []
                     # key값 가져오기
                     for body in value.find_all('td', class_='name02'):
@@ -413,7 +474,7 @@ class G2B:
                         else:
                             result_dic[item_arr[j]] = self.strip_re(body)
                             j += 1
-                if(i == 1):     # 입찰 일정
+                if(i == an.입찰일정):     # 입찰 일정
                     result_dic['입찰일정'] = []
                     # key값 가져오기
                     for body in value.find_all('td', class_='list01'):
@@ -430,9 +491,9 @@ class G2B:
                         else:
                             item_dic[temp_arr[j]] = self.strip_re(body)
                             j += 1
-                if(i == 2):     # 입찰참고사항
+                if(i == an.입찰참고사항):     # 입찰참고사항
                     result_dic[value.find('td', class_='name02').text.strip()] = value.find('textarea').text.strip()
-                if(i == 3):     # 가격정보
+                if(i == an.가격정보):     # 가격정보
                     result_dic['가격정보(단위:원)'] = {}
                     # key값 가져오기
                     for body in value.find_all('td', class_='name02'):
@@ -445,7 +506,7 @@ class G2B:
                         else:
                             item_dic[temp_arr[j]] = self.strip_re(body)
                             j += 1
-                if(i >= 4) and len(value.find_all('td', class_='name02')) > 1:     # 적격심사 세부기준
+                if(i >= an.적격심사세부기준) and len(value.find_all('td', class_='name02')) > 1:     # 적격심사 세부기준
                     result_dic['적격심사 세부기준'] = []
                     # key값 가져오기
                     for body in value.find_all('td', class_='name02'):
@@ -462,7 +523,7 @@ class G2B:
                         else:
                             item_dic[temp_arr[j]] = self.strip_re(body)
                             j += 1
-                if(i >= 4) and (value.find_all('td', class_='list01')) is not None:     # 입찰공고안내서류
+                if(i >= an.입찰공고안내서류) and (value.find_all('td', class_='list01')) is not None:     # 입찰공고안내서류
                     result_dic['입찰공고안내서류'] = []
                     # key값 가져오기
                     for body in value.find_all('td', class_='list01'):
@@ -505,7 +566,7 @@ class G2B:
                 temp_arr = []
                 item_arr = []
                 item_dic = {}
-                if (i == 1):    # 최종결과
+                if (i == rn.최종결과):    # 최종결과
                     for body in value.find_all('td'):
                         # key값 가져오기
                         if j == 0:
@@ -515,7 +576,7 @@ class G2B:
                         else:
                             result_dic[temp] = self.strip_re(body)
                             j = 0
-                if (i == 2):    # 복수 예비가격 및 예정가격
+                if (i == rn.복수예비가격):    # 복수 예비가격 및 예정가격
                     for body in value.find_all('tr'):
                         # key값 가져오기
                         if body.find('td', class_='name02') is None:
@@ -533,7 +594,7 @@ class G2B:
                             item_arr.append(body.find_all('td', class_='list01')[-1].text.strip())
                             result_dic['추첨결과 및 예정가격'].append(item_arr)
                             item_arr = []
-                if (i == 3):    # 개찰결과
+                if (i == rn.개찰결과):    # 개찰결과
                     result_dic['개찰결과'] = []
                     # key값 가져오기
                     for body in value.find_all('td', class_='list01'):
@@ -579,7 +640,7 @@ class G2B:
                 temp_arr = []
                 item_arr = []
                 item_dic = {}
-                if(i == 1):     # 물품내역
+                if(i == en.물품내역):     # 물품내역
                     result_dic['물품내역'] = []
                     # key값 가져오기
                     for body in value.find_all('td', class_='list01'):

@@ -66,7 +66,7 @@ class Schema():
                 "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
                 PRIMARY KEY("seq")
             )
-            '''
+            '''            
         ]
     def get_index_list(self):
         return [
