@@ -50,7 +50,7 @@ class ETRIAnnounceRunner():
         if g2b.get_ETRI_cookie() is False:
             return False
         self.header = {'Cookie': g2b.cookie}    # 접근시 쿠키 필요(ETRI)
-    
+
         page = 1
         while True:
              # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
@@ -63,7 +63,7 @@ class ETRIAnnounceRunner():
         g2b.check_ETRI_query_data(1)    # 새로운 리스트 유무 탐색
 
         g2b.set_query_url(f'{url}')     # 데이터 크롤링을 위한 url
-        
+
         # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
         if g2b.get_ETRI_items(3) is False:  # 개찰 결과 크롤링
             return False

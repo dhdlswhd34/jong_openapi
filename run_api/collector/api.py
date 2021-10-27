@@ -243,11 +243,11 @@ class G2B:
         temp = temp.split(',')
         url = f'{ETRI_web.D_URL}?file_id={temp[0]}&file_gb={temp[1]}'
         return url
-    
+
     # 공고번호, 시작, 종료 리스트 목록 가져오기
     def get_ETRI_query_data(self, page, headerr, type):
         temp_arr = []
-        
+
         # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
         if(type == 3):
             query = f'?pageNo={page}&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
@@ -262,7 +262,7 @@ class G2B:
             query = f'?pageNo={page}&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
             url = ETRI_web.cust_URL + query
             check = '견적완료'  # 견적완료는 따로 check
-            
+
         k = 0
         for i in range(self.query_retry):
             try:
@@ -278,7 +278,7 @@ class G2B:
                                 k = -1
                                 break
                             # 공고번호 차수
-                            temp = re.search(f'E[A-Z]2021.+\)', body.text.strip())      # ex) EA20210000(01) EP~ ,EE~  ## 체크  280번줄
+                            temp = re.search(f'E[A-Z]{self.begin[0:4]}.+\)', body.text.strip())      # ex) EA20210000(01) EP~ ,EE~
                             # 시작일시 , 종료일시 
                             temp_S = re.search('[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}', body.text.strip())   #ex) 2021-00-00 00:00 (년-월-일 시:분) 
                             if temp is not None:
@@ -303,7 +303,7 @@ class G2B:
             except Exception as e:
                 self.logger.error(e)
         return False
-    
+
     # 파일 체크
     def check_ETRI_query_data(self, type):
         self.bidunm_degree = []
@@ -342,7 +342,7 @@ class G2B:
                 f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{current_time}\n')    #저장 (ex. 공고번호(차수),입찰시작일,입찰종료일,진행상태,현재시각 )
                 self.bidunm_degree.append([bs[0], bs[3]])   # 새로운 리스트 공고번호 저장
         f.close()
-    
+
     # 데이터 크롤링
     def get_ETRI_items(self, type):
         try:
@@ -556,7 +556,7 @@ class G2B:
         return result_dic
 
     # 추가 탭 (입찰내역 가져오기)
-    def get_ETRI_ex_info(self, url,bidnum_degree):
+    def get_ETRI_ex_info(self, url, bidnum_degree):
         # 쿠키 가져오기
         if self.get_ETRI_cookie() is False:
             return False
@@ -591,7 +591,6 @@ class G2B:
                     for body in value.find_all('td', class_=''):
                         if(j == len(temp_arr)-1):
                             item_dic[temp_arr[j]] = self.strip_re(body)
-                            # print(item_dic)
                             j = 0
                             item_arr.append(item_dic)
                             result_dic['물품내역'].append(item_arr)

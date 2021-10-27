@@ -10,7 +10,7 @@ from run_ETRI_result import ETRIResultRunner
 from run_ETRI_announce import ETRIAnnounceRunner
 from run_ETRI_cust import ETRICustRunner
 from run_ETRI_cust_result import ETRICustResultRunner
-
+import del_file
 
 class Runner():
     key = LH_Api.key
@@ -76,12 +76,23 @@ class Runner():
 def schedule_run():
     now = datetime.now().strftime("%Y%d%d")
     runner = Runner()
-    runner.set_force_term(args.begin, args.end)
+    runner.set_force_term(now, args.end)
     runner.run()
+
+
+def del_schedule_run():
+    time = datetime.now().strftime("%Y%d%d")
+    # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
+    del_file.del_old_line(1,time)
+    del_file.del_old_line(2,time)
+    del_file.del_old_line(3,time)
+    del_file.del_old_line(4,time)
+
+
 
 # 30분 단위로 실행
 schedule.every(30).minutes.do(schedule_run)
-# schedule.every(10).seconds.do(schedule_run)
+schedule.every().day.at("23:30").do(del_schedule_run)
 
 if __name__ == '__main__':
     #인자 넣어주기
