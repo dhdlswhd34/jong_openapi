@@ -66,7 +66,51 @@ class Schema():
                 "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
                 PRIMARY KEY("seq")
             )
-            '''            
+            ''',
+            '''
+            CREATE TABLE IF NOT EXISTS "public"."raw_etri_announce_list" (
+                "seq" BIGSERIAL,
+                "bidnum" CHAR(14) NOT NULL,
+                "start_dt" CHAR(16) NOT NULL,
+                "end_dt" CHAR(16) NOT NULL,
+                "process" CHAR(10) NOT NULL,
+                "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
+                PRIMARY KEY("seq")
+            )
+            ''',
+            '''
+            CREATE TABLE IF NOT EXISTS "public"."raw_etri_result_list" (
+                "seq" BIGSERIAL,
+                "bidnum" CHAR(14) NOT NULL,
+                "start_dt" CHAR(16) NOT NULL,
+                "end_dt" CHAR(16) NOT NULL,
+                "process" CHAR(10) NOT NULL,
+                "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
+                PRIMARY KEY("seq")
+            )
+            ''',
+            '''
+            CREATE TABLE IF NOT EXISTS "public"."raw_etri_cust_list" (
+                "seq" BIGSERIAL,
+                "bidnum" CHAR(14) NOT NULL,
+                "start_dt" CHAR(16) NOT NULL,
+                "end_dt" CHAR(16) NOT NULL,
+                "process" CHAR(10) NOT NULL,
+                "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
+                PRIMARY KEY("seq")
+            )
+            ''',
+            '''
+            CREATE TABLE IF NOT EXISTS "public"."raw_etri_cust_result_list" (
+                "seq" BIGSERIAL,
+                "bidnum" CHAR(14) NOT NULL,
+                "start_dt" CHAR(16) NOT NULL,
+                "end_dt" CHAR(16) NOT NULL,
+                "process" CHAR(10) NOT NULL,
+                "reg_dt" TIMESTAMP DEFAULT now() NOT NULL,
+                PRIMARY KEY("seq")
+            )
+            '''                
         ]
     def get_index_list(self):
         return [
@@ -81,7 +125,11 @@ class Schema():
             'CREATE INDEX ON "raw_etri_cust"("process") WHERE "process" = 0',
             'CREATE INDEX ON "raw_etri_cust"("reg_dt")',
             'CREATE INDEX ON "raw_etri_cust_result"("process") WHERE "process" = 0',
-            'CREATE INDEX ON "raw_etri_cust_result"("reg_dt")'
+            'CREATE INDEX ON "raw_etri_cust_result"("reg_dt")',
+            'CREATE INDEX ON "raw_etri_announce_list"("reg_dt")',
+            'CREATE INDEX ON "raw_etri_result_list"("reg_dt")',
+            'CREATE INDEX ON "raw_etri_cust_list"("reg_dt")',
+            'CREATE INDEX ON "raw_etri_cust_result_list"("reg_dt")'
         ]
 
 if __name__ == '__main__':

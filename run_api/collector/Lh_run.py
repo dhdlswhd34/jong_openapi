@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import time
 import schedule
 import argparse
@@ -11,6 +11,7 @@ from run_ETRI_announce import ETRIAnnounceRunner
 from run_ETRI_cust import ETRICustRunner
 from run_ETRI_cust_result import ETRICustResultRunner
 import del_file
+from lib.logger import Logger
 
 class Runner():
     key = LH_Api.key
@@ -35,17 +36,17 @@ class Runner():
         # if self.process_run(LHAnnounceRunner) is False:
         #     return False
         # # 결과
-        # if self.process_run(ETRIResultRunner) is False:
-        #     return False
-        # # 입찰공고
+        if self.process_run(ETRIResultRunner) is False:
+            return False
+        # # # 입찰공고
         if self.process_run(ETRIAnnounceRunner) is False:
             return False
-        # # 견적요청
+        # # # 견적요청
         if self.process_run(ETRICustRunner) is False:
             return False
         # # 견적결과
-        # if self.process_run(ETRICustResultRunner) is False:
-        #     return False
+        if self.process_run(ETRICustResultRunner) is False:
+            return False
 
     def process_run(self, cls, term_days=0):
         name = cls.__name__
@@ -72,27 +73,28 @@ class Runner():
         if runner.exec() is False:
             return False
 
-
 def schedule_run():
-    now = datetime.now().strftime("%Y%d%d")
+    now = date.today()
+    end_d = date.today() + timedelta(10)
     runner = Runner()
-    runner.set_force_term(now, args.end)
+    runner.set_force_term(now.strftime("%Y%m%d"), end_d.strftime("%Y%m%d"))
     runner.run()
 
-
 def del_schedule_run():
-    time = datetime.now().strftime("%Y%d%d")
+    # 한번 가져오고
+    schedule_run()
+    # 마지막 삭제
+    time = date.today() - timedelta(1)
     # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
-    del_file.del_old_line(1,time)
-    del_file.del_old_line(2,time)
-    del_file.del_old_line(3,time)
-    del_file.del_old_line(4,time)
-
+    del_file.del_db_old_line(1,time)
+    del_file.del_db_old_line(2,time)
+    del_file.del_db_old_line(3,time)
+    del_file.del_db_old_line(4,time)
 
 
 # 30분 단위로 실행
 schedule.every(30).minutes.do(schedule_run)
-schedule.every().day.at("23:30").do(del_schedule_run)
+schedule.every().day.at("00:30").do(del_schedule_run)
 
 if __name__ == '__main__':
     #인자 넣어주기

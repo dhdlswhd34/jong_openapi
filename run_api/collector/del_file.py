@@ -1,33 +1,24 @@
 from datetime import datetime
+from lib.db import Db
 
-
-def del_old_line(type, time):
+def del_db_old_line(type, time):
+    db = Db()
+    db.connect()
+    db.autocommit(False)
 
     # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
-    list_arr = []
-
     if(type == 1):
-        txt = 'etri_announce.txt'
+        table = 'raw_etri_announce_list'
     elif(type == 2):
-        txt = 'etri_result.txt'
+        table = 'raw_etri_result_list'
     elif(type == 3):
-        txt = 'etri_cust.txt'
+        table = 'raw_etri_cust_list'
     elif(type == 4):
-        txt = 'etri_cust_result.txt'
+        table = 'raw_etri_cust_result_list'
 
-    # 마지막 데이터 불러오기
-    f = open(f'{txt}', 'rt', encoding='UTF8')
-    while True:
-        line = f.readline()
-        if not line:
-            break
-        line = line.split(',')
-        if line[2][0:10] != time:   # 현재 시작을 제외
-            list_arr.append(line)
-    f.close()
+    # ex) delete from raw_etri_result_list where end_dt < '2021-10-28 24:00';
+    query = f'DELETE FROM {table} WHERE end_dt < \'{time} 24:00\';'
+    db.cursor.execute(query)
 
-    # 저장
-    with open(f'{txt}', 'w+t', encoding='UTF8') as f:
-        for bs in list_arr:
-            f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{bs[4]}\n')    # 저장 (ex. 공고번호(차수),입찰시작일,입찰종료일,진행상태,현재시각 )
-        f.close()
+    db.commit()
+    db.close()

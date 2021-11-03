@@ -5,6 +5,7 @@ import time
 import xmltodict
 import requests
 from bs4 import BeautifulSoup
+from lib.logger import Logger
 from lib.lh_config import LH_web, label_list
 from lib.etri_config import ETRI_web
 from lib.etri_config import announce_enum as an
@@ -14,7 +15,6 @@ from urllib.parse import quote_plus
 from functools import reduce
 import pandas as pd
 import re
-
 from lib.db import Db
 
 class G2B:
@@ -30,6 +30,8 @@ class G2B:
         self.end = end
         self.filtering = filtering
         self.result_arr = []
+        self.bidnum_degree = []
+        self.page_check = 0
 
     def set_query_url(self, url):
         self.url = url
@@ -105,8 +107,6 @@ class G2B:
 
             if (type < 3):
                 return self.get_LH_items(type) if self.total_count > 0 else True
-            elif(type > 3):
-                return self.get_ETRI_items(type) if self.total_count > 0 else True
         elif self.result_code > 0 and self.result_code < 6:
             if retry >= self.query_retry:
                 self.logger.info(f'max retry excced({retry})')
@@ -129,7 +129,14 @@ class G2B:
 # common_API
     def strip_re(self, body):
         del_list = ['\r', '\n', '\t']
+        # body = body.text.strip()
+        body = str(body).strip()
+        return reduce(lambda src, filter: src.replace(filter, ''), del_list, body)
+
+    def strip_re_w(self, body):
+        del_list = ['\r', '\n', '\t']
         body = body.text.strip()
+        # body = str(body).strip()
         return reduce(lambda src, filter: src.replace(filter, ''), del_list, body)
 
 # LH_API
@@ -158,22 +165,25 @@ class G2B:
         url = url + self.bidNum + '&bidDegree=' + self.bidDegree
         response = requests.get(url)
 
-        if response.status_code == 200:
-            html = response.text
-            self.soup_obj = BeautifulSoup(html, 'html.parser')
-        else:
-            print(response.status_code)
-        for i in range(1, 7):
-            id_label1 = 'LblockDetail' + str(i)
-            if (self.soup_obj.find('div', id=id_label1)) is not None:
-                for value in self.soup_obj.find('div', id=id_label1).find_all('tr'):
-                    label = value.find('th').find('label').text.strip()
-                    data = value.find('td').text.strip()
-                    if (label) in label_list:
-                        temp_dict[label] = data
+        for i in range(self.query_retry):
+            if response.status_code == 200:
+                html = response.text
+                self.soup_obj = BeautifulSoup(html, 'html.parser')
             else:
-                break
-        return temp_dict
+                self.logger.error(response.status_code)
+                continue
+                
+            for i in range(1, 7):
+                id_label1 = 'LblockDetail' + str(i)
+                if (self.soup_obj.find('div', id=id_label1)) is not None:
+                    for value in self.soup_obj.find('div', id=id_label1).find_all('tr'):
+                        label = value.find('th').find('label').text.strip()
+                        data = value.find('td').text.strip()
+                        if (label) in label_list:
+                            temp_dict[label] = data
+                else:
+                    break
+            return temp_dict
 
     def get_LH_dict_file(self):
         # {'파일명': 'filename', 'URL': 'fileURL'} <- 저장
@@ -196,10 +206,10 @@ class G2B:
         temp = ex_file[23:-2].split('\',')
 
         if ((temp[1][0]) != '\''):
-            print("savename error")
+            self.logger.error("savename error")
             return ''
         if ((temp[3][0] or temp[3][-1]) != '\''):
-            print("filename error")
+            self.logger.error("filename error")
             return ''
 
         savename = temp[1][1:]
@@ -238,7 +248,7 @@ class G2B:
             self.header = {'Cookie': self.cookie}
             return True
         else:
-            print(response.status_code)
+            self.logger.error(response.status_code)
             return False
 
     # 첨부파일 가져오기
@@ -256,17 +266,9 @@ class G2B:
                     return False
         return True
 
-    def item_insert(self, table, sql_data):
-        if sql_data:
-            sql = f'insert into {table}(begin_dt, end_dt, text) values(%s, %s, %s)'
-            if self.db.bulk_execute(sql, sql_data) is False:
-                return False
-            else:
-                self.logger.debug(f'table({table}), insert count({len(sql_data)})')
-
     # 공고번호, 시작, 종료 리스트 목록 가져오기
     def get_ETRI_query_data(self, page, headerr, type):
-
+        temp_arr = []
         # 3:입찰공고 4:개찰결과 5:견적문의 6:견적결과
         if(type == 3):
             query = f'?pageNo={page}&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
@@ -280,7 +282,7 @@ class G2B:
         elif(type == 6):
             query = f'?pageNo={page}&search=Y&sch_fromDate={self.begin}&sch_toDate={self.end}'
             url = ETRI_web.cust_URL + query
-            check = '견적완료'  # 견적완료는 따로 check
+            check = '진행'  # 진행 빼고 다
 
         for i in range(self.query_retry):
             try:
@@ -289,125 +291,47 @@ class G2B:
                         html = response_result.text
                         soup_obj = BeautifulSoup(html, 'html.parser')
                     else:
-                        return False
+                        continue
 
                     table = soup_obj.find('table', id='table01')
                     tables = pd.read_html(str(table))
-                    print(tables[0])
-                    print(url)
-                    if(tables[0][0][1] == '자료가 존재하지 않습니다.'):
-                        return 'end'
 
-                    # 새로들어온 리스트 체크
-                    if page > 2:
-                        if self.check_change_list(page) is False:
-                            return 'back'
+                    print(url)
+
+                    if(tables[0][0][1] == '자료가 존재하지 않습니다.'):
+                        print('end')
+                        return 'end'
 
                     if (type == 6):
                         for j in range(1, len(tables[0][0])):
-                            if tables[0][6][j] == check:
-                                self.result_arr.append([tables[0][0][j], tables[0][3][j], tables[0][4][j], tables[0][6][j]])
+                            if tables[0][6][j] != check:
+                                temp_arr.append([tables[0][0][j], tables[0][3][j], tables[0][4][j], tables[0][6][j]])
+                        if len(temp_arr) > 0:
+                            self.result_arr.append(temp_arr)
+                            self.page_check += 1
                     elif (type==3):
                         # 저장 (ex. [공고번호(차수), 입찰시작일, 입찰종료일, 진행상태])
                         self.result_arr.append([[tables[0][1][j], tables[0][4][j], tables[0][5][j], tables[0][7][j]] for j in range(1, len(tables[0][0]))])
+                        self.page_check += 1
                     else:
                         # 저장 (ex. [공고번호(차수), 입찰시작일, 입찰종료일, 진행상태])
                         self.result_arr.append([[tables[0][0][j], tables[0][3][j], tables[0][4][j], tables[0][6][j]] for j in range(1, len(tables[0][0]))])
-                    if page == 2:
-                        print(self.result_arr)
-                        return 'end'
-                    return True
+                        self.page_check += 1
 
+                    # 새로들어온 리스트 체크
+                    if  self.page_check > 2:
+                        if self.check_change_list(self.page_check) is False:
+                            return 'back'
+                    return True
             except Exception as e:
                 self.logger.error(e)
         return False
-
-    # 파일 체크
-    def check_ETRI_query_data(self, type):
-        self.bidunm_degree = []
-
-        # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
-        list_arr = []
-        if(type == 1):
-            txt = 'etri_announce.txt'
-        elif(type == 2):
-            txt = 'etri_result.txt'
-        elif(type == 3):
-            txt = 'etri_cust.txt'
-        elif(type == 4):
-            txt = 'etri_cust_result.txt'
-
-        # 마지막 데이터 불러오기
-        f = open(f'{txt}', 'rt', encoding='UTF8')
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            line = line.split(',')
-            list_arr.append(line)
-        f.close()
-
-        # 추가 내용 저장
-        f = open(f'{txt}', 'a+', encoding='UTF8')
-        for pg in self.result_arr:
-            for bs in pg:
-                i = 1
-                for txt in list_arr:
-                    if(txt[0:4] == bs):     # 중복체크
-                        i = 0   # 중복인 경우 0
-                        break   # 발견시 break
-                if(i == 1):     # 새로운 데이터 저장
-                    current_time = datetime.now()
-                    f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{current_time}\n')    #저장 (ex. 공고번호(차수),입찰시작일,입찰종료일,진행상태,현재시각 )
-                    self.bidunm_degree.append([bs[0], bs[3]])   # 새로운 리스트 공고번호 저장
-        f.close()
-
-    def check_ETRI_query_data(self, type):
-        self.bidunm_degree = []
-
-        db = Db(self.logger)
-        db.connect()
-        db.autocommit(False)
-
-        # 1:입찰공고 2:개찰결과 3:견적문의 4:견적결과
-        list_arr = []
-        if(type == 1):
-            table = 'raw_etri_announce_list'
-        elif(type == 2):
-            table = 'raw_etri_result_list'
-        elif(type == 3):
-            table = 'raw_etri_cust_list'
-        elif(type == 4):
-            table = 'raw_etri_cust_result_list'
-
-        # 마지막 데이터 불러오기
-        query = f'SELECT * FROM {table}'
-        db.cursor.execute(query)
-
-        db_list = db.cursor.fetchall()
-
-        # 추가 내용 저장
-        f = open(f'{txt}', 'a+', encoding='UTF8')
-        for pg in self.result_arr:
-            for bs in pg:
-                i = 1
-                for txt in list_arr:
-                    if(txt[0:4] == bs):     # 중복체크
-                        i = 0   # 중복인 경우 0
-                        break   # 발견시 break
-                if(i == 1):     # 새로운 데이터 저장
-                    current_time = datetime.now()
-                    f.write(f'{bs[0]},{bs[1]},{bs[2]},{bs[3]},{current_time}\n')    #저장 (ex. 공고번호(차수),입찰시작일,입찰종료일,진행상태,현재시각 )
-                    self.bidunm_degree.append([bs[0], bs[3]])   # 새로운 리스트 공고번호 저장
-        f.close()
-
-        db.close()
 
     # 데이터 크롤링
     def get_ETRI_items(self, type):
         try:
             self.item_data = []
-            for bidnum_degree in self.bidunm_degree:
+            for bidnum_degree in self.bidnum_degree:
                 url = f'{self.url}?biNo={bidnum_degree[0]}'     # URL 설정
                 print(url)
                 if type == 3:   # 입찰공고
@@ -429,238 +353,187 @@ class G2B:
             self.logger.error(e)
         return False
 
-    # 입찰공고 데이터
+    # 첨부파일
+    def exfile_cw(self, count):
+        temp_arr = []
+        # url 가져오기
+        url_arr = [self.get_etri_file(file) for file in self.table[-1].find_all('a')]
+        for i in range(1, len(self.tables[count].index)):
+            item_dic = {}
+            for j in range(0, len(self.tables[count].columns)):
+                item_dic[self.tables[count][j][0]] = self.tables[count][j][i]
+            item_dic['URL'] = url_arr[i-1]
+            temp_arr.append(item_dic)
+
+        return temp_arr
+
+    # 테이블 번호, 결과, 시작값, 열개수 
+    def liner_cw(self, count, start, row, ex):
+        item_dic = {}
+        for i in range(ex, len(self.tables[count].index)):
+            for j in range(start, start + row):
+                item_dic[self.strip_re(self.tables[count][(j*2)][i])] = self.strip_re(self.tables[count][(j*2)+1][i])
+        return item_dic
+
+    def columns_cw(self, count):
+        temp_arr = []
+        for i in range(1, len(self.tables[count].index)):
+            item_dic = {}
+            for j in range(0, len(self.tables[count].columns)):
+                item_dic[self.tables[count][j][0]] = self.tables[count][j][i]
+            temp_arr.append(item_dic)
+        return temp_arr
+
     def get_ETRI_announce(self, url):
-
+        result_dic = {}
+        item_dic = {}
         # 쿠키 가져오기
-        if self.get_ETRI_cookie() is False:
-            return False
+        for i in range(self.query_retry):
+            if self.get_ETRI_cookie() is False:
+                sleep(self.timeout)
+                continue
 
-        response = requests.get(url, headers=self.header)
+            response = requests.get(url, headers=self.header)
 
-        if response.status_code == 200:
-            html = response.text
-            self.soup_obj = BeautifulSoup(html, 'html.parser')
-        else:
-            print(response.status_code)
+            if response.status_code == 200:
+                html = response.text
+                self.soup_obj = BeautifulSoup(html, 'html.parser')
+            else:
+                self.logger.error(response.status_code)
+                sleep(self.timeout)
+                continue
 
-        if (self.soup_obj.find_all('table', id='table01')) is not None:
-            i = 0
-            result_dic = {}
-            for value in self.soup_obj.find_all('table', id='table01'):
-                j = 0
-                temp_arr = []
-                item_arr = []
-                item_dic = {}
-                if (i == an.공고번호정보):    # 공고번호 정보
-                    item_arr = []
-                    # key값 가져오기
-                    for body in value.find_all('td', class_='name02'):
-                        item_arr.append(self.strip_re(body))
-                    # value값 가져오기
-                    for body in value.find_all('td', class_=''):
-                        if j >= 14:
-                            if(j == 16):
-                                temp_arr.append(self.strip_re(body))
-                                result_dic[item_arr[14]] = {}
-                                result_dic[item_arr[14]][item_arr[15]] = temp_arr
-                                temp_arr = []
-                            elif(j == 19):
-                                temp_arr.append(self.strip_re(body))
-                                result_dic[item_arr[14]][item_arr[16]] = temp_arr
-                            else:
-                                temp_arr.append(self.strip_re(body))
-                            j += 1
-                        else:
-                            result_dic[item_arr[j]] = self.strip_re(body)
-                            j += 1
-                if(i == an.입찰일정):     # 입찰 일정
-                    result_dic['입찰일정'] = []
-                    # key값 가져오기
-                    for body in value.find_all('td', class_='list01'):
-                        temp_arr.append(self.strip_re(body))
-                    # value값 가져오기
-                    for body in value.find_all('td', class_=''):
-                        if(j == len(temp_arr) - 1):
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j = 0
-                            item_arr.append(item_dic)
-                            result_dic['입찰일정'].append(item_arr)
-                            item_dic = {}
-                            item_arr = []
-                        else:
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j += 1
-                if(i == an.입찰참고사항):     # 입찰참고사항
-                    result_dic[value.find('td', class_='name02').text.strip()] = value.find('textarea').text.strip()
-                if(i == an.가격정보):     # 가격정보
-                    result_dic['가격정보(단위:원)'] = {}
-                    # key값 가져오기
-                    for body in value.find_all('td', class_='name02'):
-                        temp_arr.append(self.strip_re(body))
-                    # value값 가져오기
-                    for body in value.find_all('td', class_=''):
-                        if(j == (len(temp_arr) - 1)):
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            result_dic['가격정보(단위:원)'] = item_dic
-                        else:
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j += 1
-                if(i >= an.적격심사세부기준) and len(value.find_all('td', class_='name02')) > 1:     # 적격심사 세부기준
-                    result_dic['적격심사 세부기준'] = []
-                    # key값 가져오기
-                    for body in value.find_all('td', class_='name02'):
-                        temp_arr.append(self.strip_re(body))
-                    # value값 가져오기
-                    for body in value.find_all('td', class_=''):
-                        if(j == (len(temp_arr) - 1)):
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j = 0
-                            item_arr.append(item_dic)
-                            result_dic['적격심사 세부기준'].append(item_arr)
-                            item_dic = {}
-                            item_arr = []
-                        else:
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j += 1
-                if(i >= an.입찰공고안내서류) and (value.find_all('td', class_='list01')) is not None:     # 입찰공고안내서류
-                    result_dic['입찰공고안내서류'] = []
-                    # key값 가져오기
-                    for body in value.find_all('td', class_='list01'):
-                        temp_arr.append(self.strip_re(body))
-                    # value값 가져오기
-                    for body in value.find_all('td', class_=''):
-                        if(j == (len(temp_arr) - 1)):
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            item_dic['URL'] = self.get_etri_file(body.find('a'))
-                            j = 0
-                            item_arr.append(item_dic)
-                            result_dic['입찰공고안내서류'].append(item_arr)
-                            item_dic = {}
-                            item_arr = []
-                        else:
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j += 1
-                i += 1
-        return result_dic
+            self.table = self.soup_obj.find_all('table', id='table01')
+            self.tables = pd.read_html(str(self.table))
+            #nan제거
+            for i in range(0, len(self.tables)):
+                self.tables[i] = self.tables[i].fillna('')
+
+            t_len = len(self.tables[0])
+
+            # 공고번호
+            for i in range(0, len(self.tables[0][0]) - 2):
+                result_dic[self.strip_re(self.tables[0][0][i])] = self.strip_re(self.tables[0][1][i])
+                result_dic[self.strip_re(self.tables[0][3][i])] = self.strip_re(self.tables[0][4][i])
+
+            item_dic[self.strip_re(self.tables[0][1][t_len-2])] = [self.strip_re(self.tables[0][2][t_len-2]), self.strip_re(self.tables[0][3][t_len-2]), self.strip_re(self.tables[0][4][t_len-2])]
+            item_dic[self.strip_re(self.tables[0][1][t_len-1])] = [self.strip_re(self.tables[0][2][t_len-1]), self.strip_re(self.tables[0][3][t_len-1]), self.strip_re(self.tables[0][4][t_len-1])]
+            result_dic[self.strip_re(self.tables[0][0][t_len-1])] = item_dic
+
+            # 입찰일정
+            result_dic['입찰일정'] = self.columns_cw(1)
+
+            # 입찰참고사항
+            result_dic[self.strip_re(self.tables[2][0][0])] = self.strip_re(self.tables[2][1][0])
+
+            # 가격정보
+            result_dic['가격정보'] = self.liner_cw(3, 0, 2, 0)
+        
+            if (len(self.tables)) > 5:
+                # 적격심사 세부기준
+                result_dic['적격심사세부기준'] = self.liner_cw(4, 0, 2, 0)
+                # 첨부파일
+                result_dic['입찰공고안내서류'] = self.exfile_cw(5)
+            elif(len(self.tables)) <= 5:
+                # 첨부파일
+                result_dic['입찰공고안내서류'] = self.exfile_cw(4)
+
+            return result_dic
 
     def get_ETRI_result(self, url):
+        result_dic = {}
         # 쿠키 가져오기
-        if self.get_ETRI_cookie() is False:
-            return False
+        for i in range(self.query_retry):
+            if self.get_ETRI_cookie() is False:
+                sleep(self.timeout)
+                continue
 
-        # 쿠키 넣어주기
-        response = requests.get(url, headers=self.header)
+            # 쿠키 넣어주기
+            response = requests.get(url, headers=self.header)
 
-        if response.status_code == 200:
-            html = response.text
-            self.soup_obj = BeautifulSoup(html, 'html.parser')
-        else:
-            print(response.status_code)
+            if response.status_code == 200:
+                html = response.text
+                self.soup_obj = BeautifulSoup(html, 'html.parser')
+            else:
+                self.logger.error(response.status_code)
+                sleep(self.timeout)
+                continue                
 
-        if (self.soup_obj.find('table', id='table01')) is not None:
-            i = 0
-            result_dic = {}
-            for value in self.soup_obj.find_all('table', id='table01'):
-                j = 0
-                temp_arr = []
-                item_arr = []
-                item_dic = {}
-                if (i == rn.최종결과):    # 최종결과
-                    for body in value.find_all('td'):
-                        # key값 가져오기
-                        if j == 0:
-                            temp = self.strip_re(body)
-                            j = 1
-                        # value값 가져오기
-                        else:
-                            result_dic[temp] = self.strip_re(body)
-                            j = 0
-                if (i == rn.복수예비가격):    # 복수 예비가격 및 예정가격
-                    for body in value.find_all('tr'):
-                        # key값 가져오기
-                        if body.find('td', class_='name02') is None:
-                            i += 1
-                            break
-                        # value값 가져오기
-                        if j == 0:
-                            for item in body.find_all('td'):
-                                result_dic[item.text.strip()] = []
-                            j = 1
-                        elif j == 1:
-                            for item in body.find_all('td')[0:-1]:
-                                result_dic['복수예비가격'].append(item.text.strip())
-                            item_arr.append(body.find_all('td', class_='list01')[0].text.strip())
-                            item_arr.append(body.find_all('td', class_='list01')[-1].text.strip())
-                            result_dic['추첨결과 및 예정가격'].append(item_arr)
-                            item_arr = []
-                if (i == rn.개찰결과):    # 개찰결과
-                    result_dic['개찰결과'] = []
-                    # key값 가져오기
-                    for body in value.find_all('td', class_='list01'):
-                        temp_arr.append(self.strip_re(body))
-                    # value값 가져오기
-                    for body in value.find_all('td', class_=''):
-                        if (j == (len(temp_arr) - 1)):
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j = 0
-                            item_arr.append(item_dic)
-                            result_dic['개찰결과'].append(item_arr)
-                            item_dic = {}
-                            item_arr = []
-                        else:
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j += 1
-                i += 1
-        else:
-            return False
-        return result_dic
+            table = self.soup_obj.find_all('table', id='table01')
+            self.tables = pd.read_html(str(table))
+
+            #nan제거
+            for i in range(0, len(self.tables)):
+                self.tables[i] = self.tables[i].fillna('')
+
+            # 최종결과
+            result_dic['최종결과'] = self.liner_cw(1, 0, 2, 0)
+            if(len(self.tables) > 2):
+                # 복수 예비가격 및 예정가격
+                if(len(self.tables) == 3):
+                    # 개찰결과
+                    result_dic['개찰결과'] = self.columns_cw(2)
+                else:
+                    result_dic['복수예비가격'] = self.liner_cw(2, 0, 3, 1)
+
+                    result_dic['추첨결과 및 예정결과'] = self.liner_cw(2, 3, 1, 1)
+
+                    # 개찰결과
+                    result_dic['개찰결과'] = self.columns_cw(3)
+
+            return result_dic
+
 
     # 추가 탭 (입찰내역 가져오기)
     def get_ETRI_ex_info(self, url, bidnum_degree):
-        # 쿠키 가져오기
-        if self.get_ETRI_cookie() is False:
-            return False
 
-        url = url + f'?biNo={bidnum_degree}'    # URL이 달라 따로 설정
-        # 쿠키 넣어주기
-        response = requests.get(url, headers=self.header)
+        for i in range(self.query_retry):
+            # 쿠키 가져오기
+            if self.get_ETRI_cookie() is False:
+                sleep(self.timeout)
+                continue                
 
-        if response.status_code == 200:
-            html = response.text
-            self.soup_obj = BeautifulSoup(html, 'html.parser')
-        else:
-            print(response.status_code)
+            url = url + f'?biNo={bidnum_degree}'    # URL이 달라 따로 설정
+            # 쿠키 넣어주기
+            response = requests.get(url, headers=self.header)
 
-        if (self.soup_obj.find('table', id='table01')) is not None:
-            result_dic = {}
-            i = 0
-            for value in self.soup_obj.find_all('table', id='table01'):
-                j = 0
-                temp_arr = []
-                item_arr = []
-                item_dic = {}
-                if(i == en.물품내역):     # 물품내역
-                    result_dic['물품내역'] = []
-                    # key값 가져오기
-                    for body in value.find_all('td', class_='list01'):
-                        if(self.strip_re(body) == '물품명세'):    # 물품 명세에서 끊기
-                            temp_arr.append(self.strip_re(body))
-                            break
-                        temp_arr.append(self.strip_re(body))
-                    # value 값 가져오기
-                    for body in value.find_all('td', class_=''):
-                        if(j == len(temp_arr)-1):
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j = 0
-                            item_arr.append(item_dic)
-                            result_dic['물품내역'].append(item_arr)
-                            item_dic = {}
-                            item_arr = []
-                        else:
-                            item_dic[temp_arr[j]] = self.strip_re(body)
-                            j += 1
-                i += 1
-        else:
-            return False
-        return result_dic
+            if response.status_code == 200:
+                html = response.text
+                self.soup_obj = BeautifulSoup(html, 'html.parser')
+            else:
+                self.logger.error(response.status_code)
+                sleep(self.timeout)
+                continue                
+
+            if (self.soup_obj.find('table', id='table01')) is not None:
+                result_dic = {}
+                i = 0
+                for value in self.soup_obj.find_all('table', id='table01'):
+                    j = 0
+                    temp_arr = []
+                    item_arr = []
+                    item_dic = {}
+                    if(i == en.물품내역):     # 물품내역
+                        result_dic['물품내역'] = []
+                        # key값 가져오기
+                        for body in value.find_all('td', class_='list01'):
+                            if(self.strip_re_w(body) == '물품명세'):    # 물품 명세에서 끊기
+                                temp_arr.append(self.strip_re_w(body))
+                                break
+                            temp_arr.append(self.strip_re_w(body))
+                        # value 값 가져오기
+                        for body in value.find_all('td', class_=''):
+                            if(j == len(temp_arr)-1):
+                                item_dic[temp_arr[j]] = self.strip_re_w(body)
+                                j = 0
+                                item_arr.append(item_dic)
+                                result_dic['물품내역'].append(item_arr)
+                                item_dic = {}
+                                item_arr = []
+                            else:
+                                item_dic[temp_arr[j]] = self.strip_re_w(body)
+                                j += 1
+                    i += 1
+            else:
+                return False
+            return result_dic
