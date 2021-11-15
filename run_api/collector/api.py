@@ -129,14 +129,12 @@ class G2B:
 # common_API
     def strip_re(self, body):
         del_list = ['\r', '\n', '\t']
-        # body = body.text.strip()
         body = str(body).strip()
         return reduce(lambda src, filter: src.replace(filter, ''), del_list, body)
 
     def strip_re_w(self, body):
         del_list = ['\r', '\n', '\t']
         body = body.text.strip()
-        # body = str(body).strip()
         return reduce(lambda src, filter: src.replace(filter, ''), del_list, body)
 
 # LH_API

@@ -1,4 +1,3 @@
-
 class LH_Api:
     key = 'WImruyXsZ0iBn%2Bc1ZAB4oFgVpC8jU%2B%2Bspz4rAazLaglvajSPSWgPMxNQet72x79u6JUOqYp2SWlR5fhZPh6egQ%3D%3D'
 

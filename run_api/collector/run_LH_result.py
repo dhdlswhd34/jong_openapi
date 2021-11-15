@@ -24,13 +24,6 @@ class LHResultRunner():
     def exec(self):
         state_code = StateCode.PROCEEDING
 
-        """
-        if State.update_state(self.logger, __class__, __file__, state_code, self.begin, self.end) is False:
-            return False
-        else:
-            state_code = StateCode.END
-
-        """
         #DB부분
         self.db = Db(self.logger)
         self.db.connect()
@@ -40,8 +33,6 @@ class LHResultRunner():
             g2b_data = G2BData()
             bid_list = []
             bid_list.append(g2b_data.get_LH_result())
-
-            #bid_list = [[url, div, filtering, table] for url, divs, table in bid_list for div, filtering in divs.items()]
 
             for url,table in bid_list:
                 if self.url(url, table) is False:
@@ -55,7 +46,6 @@ class LHResultRunner():
         finally:
             print("FIN")
             self.db.close()
-            #State.update_state(self.logger, __class__, __file__, state_code, self.begin, self.end)
 
     def url(self, url, table):
         print('url start')
@@ -80,8 +70,6 @@ class LHResultRunner():
 
             if self.item_insert(table, g2b.item_data) is False:
                 return False
-
-            break #체크포인트
 
             if g2b.page_count <= page:
                 break

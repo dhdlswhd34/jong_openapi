@@ -1,9 +1,6 @@
 import time
 
 from requests import api
-
-
-
 from lib.config import LH_Api
 from lib.state import StateCode
 from api import G2B
@@ -27,13 +24,6 @@ class LHAnnounceRunner():
     def exec(self):
         state_code = StateCode.PROCEEDING
 
-        """
-        if State.update_state(self.logger, __class__, __file__, state_code, self.begin, self.end) is False:
-            return False
-        else:
-            state_code = StateCode.END
-        """
-
         # DB부분
         self.db = Db(self.logger)
         self.db.connect()
@@ -55,8 +45,6 @@ class LHAnnounceRunner():
         finally:
             print("FIN")
             self.db.close()
-
-            #State.update_state(self.logger, __class__, __file__, state_code, self.begin, self.end)
 
     def url(self, url, table):
         print('url start')
@@ -84,8 +72,6 @@ class LHAnnounceRunner():
 
             if self.item_insert(table, g2b.item_data) is False:
                 return False
-
-            break   #체크 포인트
 
             if g2b.page_count <= page:
                 break
